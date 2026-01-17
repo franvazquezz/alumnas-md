@@ -5,6 +5,10 @@
 import "./src/env.js";
 
 /** @type {import("next").NextConfig} */
-const config = {};
+const config = {
+  experimental: {
+    optimizePackageImports: ["@mantine/core", "@mantine/hooks", "@mantine/form"],
+  },
+};
 
 export default config;

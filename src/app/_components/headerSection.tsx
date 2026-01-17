@@ -1,6 +1,6 @@
 import React, { useMemo } from "react";
 import { StatCard } from "./statCard";
-import { Student } from "~/types/utils";
+import { type Student } from "~/types/utils";
 
 export const HeaderSection = ({
   students,

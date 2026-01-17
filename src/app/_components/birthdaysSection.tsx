@@ -1,6 +1,6 @@
 import { Stack, Text, Title } from "@mantine/core";
 import React, { useMemo } from "react";
-import { Student } from "~/types/utils";
+import { type Student } from "~/types/utils";
 
 export const BirthdaysSection = ({
   students,

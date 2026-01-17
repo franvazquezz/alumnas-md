@@ -2,7 +2,7 @@ import React, { useMemo, useState } from "react";
 import { LuSave } from "react-icons/lu";
 import { Button } from "./student-detail";
 import { api } from "~/trpc/react";
-import { Student } from "~/types/utils";
+import { type Student } from "~/types/utils";
 import { showNotification } from "@mantine/notifications";
 import { useParams } from "next/navigation";
 
