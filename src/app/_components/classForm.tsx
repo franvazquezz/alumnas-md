@@ -25,7 +25,7 @@ export const ClassForm = ({
         value={draft.monthId ?? ""}
         onChange={(e) =>
           onChange({
-            monthId: e.target.value === "" ? null : Number(e.target.value),
+            monthId: e.target.value === "" ? null : e.target.value,
           })
         }
         className="border-plum/20 text-ink ring-primary/20 rounded-lg border bg-white px-3 py-2 text-sm transition outline-none focus:ring-2"

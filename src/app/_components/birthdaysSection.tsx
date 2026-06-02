@@ -6,7 +6,7 @@ export const BirthdaysSection = ({
   students,
 }: {
   students?: {
-    id: number;
+    id: string;
     name: string;
     birthday?: Student["birthday"] | null;
   }[];
@@ -35,7 +35,16 @@ export const BirthdaysSection = ({
         return { student, diffDays };
       })
       .filter(
-        (item): item is { student: Student; diffDays: number } => item !== null,
+        (
+          item,
+        ): item is {
+          student: {
+            id: string;
+            name: string;
+            birthday?: Student["birthday"] | null;
+          };
+          diffDays: number;
+        } => item !== null,
       )
       .sort((a, b) => a.diffDays - b.diffDays)
       .slice(0, 4)

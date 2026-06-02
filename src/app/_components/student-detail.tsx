@@ -41,8 +41,8 @@ export const Button = ({
 
 export function StudentDetail() {
   const { id } = useParams();
-  const studentId = Number(id);
-  const isValidId = Number.isFinite(studentId);
+  const studentId = typeof id === "string" ? id : "";
+  const isValidId = studentId.length > 0;
   const utils = api.useUtils();
   const { data, isLoading } = api.students.byId.useQuery(
     { id: studentId },
@@ -58,7 +58,7 @@ export function StudentDetail() {
   });
 
   const [classDrafts, setClassDrafts] = useState<
-    Record<number, ClassFormState>
+    Record<string, ClassFormState>
   >({});
   const [newClass, setNewClass] = useState<ClassFormState>({
     className: "",
@@ -103,7 +103,7 @@ export function StudentDetail() {
               ? "18:30"
               : undefined,
     });
-    const drafts: Record<number, ClassFormState> = {};
+    const drafts: Record<string, ClassFormState> = {};
     data.classes.forEach((cls) => {
       drafts[cls.id] = {
         className: cls.className ?? "",
@@ -212,7 +212,7 @@ export function StudentDetail() {
     );
   }
 
-  const handleSaveClass = (classId: number) => {
+  const handleSaveClass = (classId: string) => {
     const draft = classDrafts[classId];
     if (!draft) return;
     updateClass.mutate({
@@ -375,8 +375,7 @@ export function StudentDetail() {
                   <select
                     value={newClass.monthId ?? ""}
                     onChange={(e) => {
-                      const value =
-                        e.target.value === "" ? null : Number(e.target.value);
+                      const value = e.target.value === "" ? null : e.target.value;
                       setNewClass((prev) => ({
                         ...prev,
                         monthId: value,

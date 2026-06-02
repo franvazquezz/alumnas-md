@@ -30,8 +30,8 @@ export const StudentPersonalDetail = ({
   >;
 }) => {
   const { id } = useParams();
-  const studentId = Number(id);
-  const isValidId = Number.isFinite(studentId);
+  const studentId = typeof id === "string" ? id : "";
+  const isValidId = studentId.length > 0;
   const [showEditDetails, setShowEditDetails] = useState(false);
 
   const utils = api.useUtils();

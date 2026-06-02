@@ -1,5 +1,5 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
+// This schema is intentionally compatible with the existing production data:
+// Student/Class use UUID ids and the legacy StudentClass join table is kept.
 
 generator client {
     provider = "prisma-client-js"
@@ -10,50 +10,218 @@ datasource db {
 }
 
 model Student {
-    id        Int        @id @default(autoincrement())
-    name      String
-    birthday  DateTime?  @db.Date
-    telephone String?
-    day       String?
-    timetable Timetable?
-    months    Month[]
-    createdAt DateTime   @default(now())
-    updatedAt DateTime   @updatedAt
+    id                 String              @id @default(uuid()) @db.Uuid
+    name               String              @db.VarChar
+    birthday           DateTime?           @db.Date
+    telephone          String?             @db.VarChar
+    day                String?             @db.VarChar
+    timetable          String?             @db.VarChar
+    months             Month[]
+    studentClasses     StudentClass[]
+    monthlyEnrollments MonthlyEnrollment[]
+    makeupCredits      MakeupCredit[]
+    sessionVisits      SessionVisit[]
+    payments           Payment[]
+    chargeItems        ChargeItem[]
+    createdAt          DateTime            @default(now()) @db.Timestamptz
+    updatedAt          DateTime            @updatedAt @db.Timestamptz
+}
+
+model StudentClass {
+    createdAt DateTime @default(now()) @db.Timestamptz
+    updatedAt DateTime @updatedAt @db.Timestamptz
+    student   Student  @relation(fields: [studentId], references: [id])
+    studentId String   @db.Uuid
+    class     Class    @relation(fields: [classId], references: [id])
+    classId   String   @db.Uuid
+
+    @@id([studentId, classId])
 }
 
 model Month {
-    id        Int      @id @default(autoincrement())
+    id        String   @id @default(uuid()) @db.Uuid
     label     String
     student   Student  @relation(fields: [studentId], references: [id])
-    studentId Int
+    studentId String   @db.Uuid
     classes   Class[]
-    createdAt DateTime @default(now())
-    updatedAt DateTime @updatedAt
+    createdAt DateTime @default(now()) @db.Timestamptz
+    updatedAt DateTime @updatedAt @db.Timestamptz
 
     @@unique([studentId, label])
 }
 
 model Class {
-    id            Int       @id @default(autoincrement())
-    className     String
-    assistance    Boolean   @default(false)
-    classDay      DateTime? @db.Date
+    id            String         @id @default(uuid()) @db.Uuid
+    className     String         @db.VarChar
+    assistance    Boolean[]
+    classDay      DateTime?      @db.Date
     classPrice    Decimal
-    classPaid     Boolean   @default(false)
-    ovenName      String?
-    ovenPrice     String
-    ovenPaid      Boolean   @default(false)
-    materialName  String
-    materialPrice String
-    materialPaid  Boolean   @default(false)
-    month         Month     @relation(fields: [monthId], references: [id])
-    monthId       Int
-    createdAt     DateTime  @default(now())
-    updatedAt     DateTime  @updatedAt
+    classPaid     Boolean        @default(false)
+    ovenName      String?        @db.VarChar
+    ovenPrice     String         @db.VarChar
+    ovenPaid      Boolean        @default(false)
+    materialName  String         @db.VarChar
+    materialPrice String         @db.VarChar
+    materialPaid  Boolean        @default(false)
+    studentLinks  StudentClass[]
+    month         Month?         @relation(fields: [monthId], references: [id])
+    monthId       String?        @db.Uuid
+    createdAt     DateTime       @default(now()) @db.Timestamptz
+    updatedAt     DateTime       @updatedAt @db.Timestamptz
 }
 
-enum Timetable {
-    TEN      @map("10:00")
-    SIXTEEN  @map("16:00")
-    EIGHTEEN @map("18:30")
+model MonthlyEnrollment {
+    id              String           @id @default(uuid()) @db.Uuid
+    student         Student          @relation(fields: [studentId], references: [id])
+    studentId       String           @db.Uuid
+    yearMonth       String
+    label           String
+    day             String
+    timetable       String
+    includedClasses Int              @default(4)
+    status          EnrollmentStatus @default(ACTIVE)
+    attendanceSlots AttendanceSlot[]
+    makeupCredits   MakeupCredit[]
+    sessionVisits   SessionVisit[]
+    chargeItems     ChargeItem[]
+    payments        Payment[]
+    createdAt       DateTime         @default(now()) @db.Timestamptz
+    updatedAt       DateTime         @updatedAt @db.Timestamptz
+
+    @@unique([studentId, yearMonth])
+    @@index([yearMonth, day, timetable])
+}
+
+model AttendanceSlot {
+    id           String             @id @default(uuid()) @db.Uuid
+    enrollment   MonthlyEnrollment  @relation(fields: [enrollmentId], references: [id])
+    enrollmentId String             @db.Uuid
+    slotNumber   Int
+    status       AttendanceStatus   @default(PENDING)
+    scheduledAt  DateTime?          @db.Date
+    attendedAt   DateTime?          @db.Date
+    note         String?
+    makeupCredit MakeupCredit?
+    createdAt    DateTime           @default(now()) @db.Timestamptz
+    updatedAt    DateTime           @updatedAt @db.Timestamptz
+
+    @@unique([enrollmentId, slotNumber])
+}
+
+model MakeupCredit {
+    id                 String             @id @default(uuid()) @db.Uuid
+    student            Student            @relation(fields: [studentId], references: [id])
+    studentId          String             @db.Uuid
+    sourceEnrollment   MonthlyEnrollment  @relation(fields: [sourceEnrollmentId], references: [id])
+    sourceEnrollmentId String             @db.Uuid
+    sourceSlot         AttendanceSlot     @relation(fields: [sourceSlotId], references: [id])
+    sourceSlotId       String             @unique @db.Uuid
+    usedVisit          SessionVisit?      @relation(fields: [usedVisitId], references: [id])
+    usedVisitId        String?            @unique @db.Uuid
+    status             MakeupStatus       @default(PENDING)
+    expiresAt          DateTime?          @db.Date
+    note               String?
+    createdAt          DateTime           @default(now()) @db.Timestamptz
+    updatedAt          DateTime           @updatedAt @db.Timestamptz
+
+    @@index([studentId, status])
+}
+
+model SessionVisit {
+    id           String             @id @default(uuid()) @db.Uuid
+    student      Student            @relation(fields: [studentId], references: [id])
+    studentId    String             @db.Uuid
+    enrollment   MonthlyEnrollment? @relation(fields: [enrollmentId], references: [id])
+    enrollmentId String?            @db.Uuid
+    visitDate    DateTime           @db.Date
+    day          String
+    timetable    String
+    kind         SessionKind        @default(REGULAR)
+    makeupCredit MakeupCredit?
+    chargeItems  ChargeItem[]
+    payments     Payment[]
+    note         String?
+    createdAt    DateTime           @default(now()) @db.Timestamptz
+    updatedAt    DateTime           @updatedAt @db.Timestamptz
+
+    @@index([visitDate, timetable])
+}
+
+model ChargeItem {
+    id           String             @id @default(uuid()) @db.Uuid
+    student      Student            @relation(fields: [studentId], references: [id])
+    studentId    String             @db.Uuid
+    enrollment   MonthlyEnrollment? @relation(fields: [enrollmentId], references: [id])
+    enrollmentId String?            @db.Uuid
+    visit        SessionVisit?      @relation(fields: [visitId], references: [id])
+    visitId      String?            @db.Uuid
+    label        String
+    category     ChargeCategory     @default(OTHER)
+    amount       Decimal
+    paid         Boolean            @default(false)
+    note         String?
+    createdAt    DateTime           @default(now()) @db.Timestamptz
+    updatedAt    DateTime           @updatedAt @db.Timestamptz
+
+    @@index([studentId, paid])
+}
+
+model Payment {
+    id           String             @id @default(uuid()) @db.Uuid
+    student      Student            @relation(fields: [studentId], references: [id])
+    studentId    String             @db.Uuid
+    enrollment   MonthlyEnrollment? @relation(fields: [enrollmentId], references: [id])
+    enrollmentId String?            @db.Uuid
+    visit        SessionVisit?      @relation(fields: [visitId], references: [id])
+    visitId      String?            @db.Uuid
+    amount       Decimal
+    method       PaymentMethod      @default(OTHER)
+    paidAt       DateTime           @default(now()) @db.Timestamptz
+    note         String?
+    createdAt    DateTime           @default(now()) @db.Timestamptz
+    updatedAt    DateTime           @updatedAt @db.Timestamptz
+
+    @@index([studentId, paidAt])
+}
+
+enum EnrollmentStatus {
+    ACTIVE
+    PAUSED
+    FINISHED
+}
+
+enum AttendanceStatus {
+    PENDING
+    ATTENDED
+    MISSED_MAKEUP
+    MISSED_NO_MAKEUP
+    MADE_UP
+}
+
+enum MakeupStatus {
+    PENDING
+    USED
+    EXPIRED
+    CANCELLED
+}
+
+enum SessionKind {
+    REGULAR
+    MAKEUP
+    EXTRA
+}
+
+enum ChargeCategory {
+    CLASS
+    MATERIAL
+    OVEN
+    TOOL
+    OTHER
+}
+
+enum PaymentMethod {
+    CASH
+    TRANSFER
+    CARD
+    OTHER
 }
