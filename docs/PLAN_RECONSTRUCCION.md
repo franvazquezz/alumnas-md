@@ -88,6 +88,11 @@ Entidades concretas previstas:
 
 ## 4. Fase 1 — Base técnica reproducible
 
+**Estado:** cerrada el 1 de septiembre de 2026. El baseline y la limpieza
+heredada fueron validados desde cero y aplicados en la copia local y Neon. La
+pipeline, el tema Tailwind 4, el formato y la documentación quedaron
+versionados. El proyecto Vercel continúa pausado hasta la autenticación.
+
 ### Trabajo
 
 1. Crear una migración inicial que refleje las tablas activas.

@@ -7,7 +7,11 @@ import "./src/env.js";
 /** @type {import("next").NextConfig} */
 const config = {
   experimental: {
-    optimizePackageImports: ["@mantine/core", "@mantine/hooks", "@mantine/form"],
+    optimizePackageImports: [
+      "@mantine/core",
+      "@mantine/hooks",
+      "@mantine/form",
+    ],
   },
 };
 

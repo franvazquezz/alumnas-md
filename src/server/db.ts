@@ -11,9 +11,11 @@ declare global {
   var pgPool: Pool | undefined;
 }
 
-const pool = global.pgPool ?? new Pool({
-  connectionString: env.DATABASE_URL,
-});
+const pool =
+  global.pgPool ??
+  new Pool({
+    connectionString: env.DATABASE_URL,
+  });
 const adapter = new PrismaPg(pool);
 
 const createPrismaClient = () =>
