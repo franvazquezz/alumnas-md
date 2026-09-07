@@ -12,7 +12,8 @@ export const HeaderSection = ({
   setSearch: (value: string) => void;
 }) => {
   const stats = useMemo(() => {
-    const totalStudents = students?.length ?? 0;
+    const totalStudents =
+      students?.filter((student) => student.isActive).length ?? 0;
     const totalClasses =
       students?.reduce((sum, student) => sum + student.classes.length, 0) ?? 0;
     return {

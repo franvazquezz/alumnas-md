@@ -3,7 +3,8 @@ import { LuPlus } from "react-icons/lu";
 import { ButtonM } from "./button";
 import { api } from "~/trpc/react";
 import { showNotification } from "@mantine/notifications";
-import { emptyStudent } from "~/types/utils";
+import { emptyStudent, WEEK_DAYS } from "~/types/utils";
+import type { WeekdayOption } from "~/types/students";
 
 export const RegisterSection = () => {
   const [showCreateStudent, setShowCreateStudent] = useState(false);
@@ -30,8 +31,9 @@ export const RegisterSection = () => {
       ...studentForm,
       birthday: studentForm.birthday ?? undefined,
       telephone: studentForm.telephone ?? undefined,
-      day: studentForm.day ?? undefined,
+      weekday: studentForm.weekday,
       timetable: studentForm.timetable ?? undefined,
+      isActive: studentForm.isActive,
     });
   };
 
@@ -83,14 +85,23 @@ export const RegisterSection = () => {
             placeholder="Teléfono"
             className="border-plum/20 text-ink ring-primary/20 rounded-xl border bg-white/80 px-4 py-2 text-sm transition outline-none focus:ring-2"
           />
-          <input
-            value={studentForm.day}
+          <select
+            value={studentForm.weekday ?? ""}
             onChange={(e) =>
-              setStudentForm({ ...studentForm, day: e.target.value })
+              setStudentForm({
+                ...studentForm,
+                weekday: (e.target.value || null) as WeekdayOption | null,
+              })
             }
-            placeholder="Día preferido"
             className="border-plum/20 text-ink ring-primary/20 rounded-xl border bg-white/80 px-4 py-2 text-sm transition outline-none focus:ring-2"
-          />
+          >
+            <option value="">Seleccionar día</option>
+            {WEEK_DAYS.map((day) => (
+              <option key={day.value} value={day.value}>
+                {day.label}
+              </option>
+            ))}
+          </select>
           <select
             value={studentForm.timetable}
             onChange={(e) =>

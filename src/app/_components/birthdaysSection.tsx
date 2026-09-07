@@ -1,6 +1,11 @@
 import { Stack, Text, Title } from "@mantine/core";
 import React, { useMemo } from "react";
 import { type Student } from "~/types/utils";
+import {
+  calendarDateInTimeZone,
+  daysUntilNextBirthday,
+  formatCalendarDate,
+} from "~/lib/domain/calendar-date";
 
 export const BirthdaysSection = ({
   students,
@@ -8,30 +13,18 @@ export const BirthdaysSection = ({
   students?: {
     id: number;
     name: string;
+    isActive: boolean;
     birthday?: Student["birthday"] | null;
   }[];
 }) => {
   const studentsWithUpcomingBirthdays = useMemo(() => {
     if (!students) return [];
-    const now = new Date();
-    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const today = calendarDateInTimeZone(new Date());
     const upcoming = students
       .map((student) => {
-        if (!student.birthday) return null;
-        const birthdayDate = new Date(student.birthday);
-        if (Number.isNaN(birthdayDate.getTime())) return null;
-        const birthdayThisYear = new Date(
-          today.getFullYear(),
-          birthdayDate.getMonth(),
-          birthdayDate.getDate(),
-        );
-        if (birthdayThisYear < today) {
-          birthdayThisYear.setFullYear(birthdayThisYear.getFullYear() + 1);
-        }
-        const diffDays = Math.ceil(
-          (birthdayThisYear.getTime() - today.getTime()) /
-            (1000 * 60 * 60 * 24),
-        );
+        if (!student.isActive || !student.birthday) return null;
+        const diffDays = daysUntilNextBirthday(student.birthday, today);
+        if (diffDays === null) return null;
         return { student, diffDays };
       })
       .filter(
@@ -67,9 +60,8 @@ export const BirthdaysSection = ({
                 <Text className="text-plum/80 text-sm">
                   Cumpleaños:{" "}
                   {student.birthday
-                    ? new Date(student.birthday).toLocaleDateString("es-AR", {
-                        month: "2-digit",
-                        day: "2-digit",
+                    ? formatCalendarDate(student.birthday, {
+                        year: undefined,
                       })
                     : "Sin fecha"}
                 </Text>

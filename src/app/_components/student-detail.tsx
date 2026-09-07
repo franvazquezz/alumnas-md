@@ -9,6 +9,8 @@ import { LuArrowLeft, LuLoader2, LuPlus, LuSave } from "react-icons/lu";
 import { api } from "~/trpc/react";
 import { type ClassFormState, type StudentFormState } from "~/types/students";
 import { StudentPersonalDetail } from "./studentPersonalDetail";
+import { formatCalendarDate } from "~/lib/domain/calendar-date";
+import { formatMoney } from "~/lib/domain/money";
 
 export const Button = ({
   children,
@@ -53,8 +55,9 @@ export function StudentDetail() {
     name: "",
     birthday: "",
     telephone: "",
-    day: "",
+    weekday: null,
     timetable: undefined,
+    isActive: true,
   });
 
   const [classDrafts, setClassDrafts] = useState<
@@ -64,15 +67,15 @@ export function StudentDetail() {
     className: "",
     classPrice: "",
     classDay: "",
-    classPaid: false,
+    classPaymentStatus: "PENDING",
     monthId: null,
     assistance: false,
     ovenName: "",
     ovenPrice: "",
-    ovenPaid: false,
+    ovenPaymentStatus: "PENDING",
     materialName: "",
     materialPrice: "",
-    materialPaid: false,
+    materialPaymentStatus: "PENDING",
   });
   const [newMonth, setNewMonth] = useState("");
   const [showAddMonth, setShowAddMonth] = useState(false);
@@ -89,11 +92,9 @@ export function StudentDetail() {
     if (!data) return;
     setForm({
       name: data.name ?? "",
-      birthday: data.birthday
-        ? new Date(data.birthday).toISOString().slice(0, 10)
-        : "",
+      birthday: data.birthday ?? "",
       telephone: data.telephone ?? "",
-      day: data.day ?? "",
+      weekday: data.weekday,
       timetable:
         data.timetable === "10:00"
           ? "10:00"
@@ -102,24 +103,23 @@ export function StudentDetail() {
             : data.timetable === "18:30"
               ? "18:30"
               : undefined,
+      isActive: data.isActive,
     });
     const drafts: Record<number, ClassFormState> = {};
     data.classes.forEach((cls) => {
       drafts[cls.id] = {
         className: cls.className ?? "",
         classPrice: cls.classPrice ? String(cls.classPrice) : "",
-        classDay: cls.classDay
-          ? new Date(cls.classDay).toISOString().slice(0, 10)
-          : "",
-        classPaid: Boolean(cls.classPaid),
+        classDay: cls.classDay ?? "",
+        classPaymentStatus: cls.classPaymentStatus,
         monthId: cls.monthId ?? null,
         assistance: Boolean(cls.assistance),
         ovenName: cls.ovenName ?? "",
         ovenPrice: cls.ovenPrice ?? "",
-        ovenPaid: Boolean(cls.ovenPaid),
+        ovenPaymentStatus: cls.ovenPaymentStatus,
         materialName: cls.materialName ?? "",
         materialPrice: cls.materialPrice ?? "",
-        materialPaid: Boolean(cls.materialPaid),
+        materialPaymentStatus: cls.materialPaymentStatus,
       };
     });
     setClassDrafts(drafts);
@@ -159,15 +159,15 @@ export function StudentDetail() {
         className: "",
         classPrice: "",
         classDay: "",
-        classPaid: false,
+        classPaymentStatus: "PENDING",
         monthId: variables.monthId,
         assistance: false,
         ovenName: "",
         ovenPrice: "",
-        ovenPaid: false,
+        ovenPaymentStatus: "PENDING",
         materialName: "",
         materialPrice: "",
-        materialPaid: false,
+        materialPaymentStatus: "PENDING",
       });
       // reset any draft created for new class id
       setClassDrafts((prev) => ({
@@ -176,15 +176,15 @@ export function StudentDetail() {
           className: "",
           classPrice: "",
           classDay: "",
-          classPaid: false,
+          classPaymentStatus: "PENDING",
           monthId: variables.monthId,
           assistance: false,
           ovenName: "",
           ovenPrice: "",
-          ovenPaid: false,
+          ovenPaymentStatus: "PENDING",
           materialName: "",
           materialPrice: "",
-          materialPaid: false,
+          materialPaymentStatus: "PENDING",
         },
       }));
       notify("success", "Clase creada");
@@ -218,18 +218,16 @@ export function StudentDetail() {
     updateClass.mutate({
       classId,
       className: draft.className,
-      classPrice: Number(draft.classPrice ?? 0),
-      classDay: draft.classDay
-        ? new Date(draft.classDay).toISOString()
-        : undefined,
-      classPaid: draft.classPaid,
+      classPrice: draft.classPrice,
+      classDay: draft.classDay || null,
+      classPaymentStatus: draft.classPaymentStatus,
       assistance: draft.assistance,
       ovenName: draft.ovenName ?? undefined,
       ovenPrice: draft.ovenPrice ?? undefined,
-      ovenPaid: draft.ovenPaid,
+      ovenPaymentStatus: draft.ovenPaymentStatus,
       materialName: draft.materialName ?? undefined,
       materialPrice: draft.materialPrice ?? undefined,
-      materialPaid: draft.materialPaid,
+      materialPaymentStatus: draft.materialPaymentStatus,
     });
   };
 
@@ -241,27 +239,25 @@ export function StudentDetail() {
     addClass.mutate({
       studentId: studentId,
       className: newClass.className,
-      classPrice: Number(newClass.classPrice),
-      classDay: newClass.classDay
-        ? new Date(newClass.classDay).toISOString()
-        : undefined,
-      classPaid: newClass.classPaid,
+      classPrice: newClass.classPrice,
+      classDay: newClass.classDay || null,
+      classPaymentStatus: newClass.classPaymentStatus,
       monthId: newClass.monthId,
       assistance: newClass.assistance,
       ovenName: newClass.ovenName ?? undefined,
       ovenPrice: newClass.ovenPrice ?? undefined,
-      ovenPaid: newClass.ovenPaid,
+      ovenPaymentStatus: newClass.ovenPaymentStatus,
       materialName: newClass.materialName ?? undefined,
       materialPrice: newClass.materialPrice ?? undefined,
-      materialPaid: newClass.materialPaid,
+      materialPaymentStatus: newClass.materialPaymentStatus,
     });
   };
 
   const handleAddMonth = (e: React.FormEvent) => {
     e.preventDefault();
-    const label = newMonth.trim();
-    if (!label || !isValidId) return;
-    addMonth.mutate({ studentId, label });
+    const [year, month] = newMonth.split("-").map(Number);
+    if (!year || !month || !isValidId) return;
+    addMonth.mutate({ studentId, year, month });
   };
 
   return (
@@ -320,9 +316,11 @@ export function StudentDetail() {
                   onSubmit={handleAddMonth}
                 >
                   <input
+                    type="month"
                     value={newMonth}
                     onChange={(e) => setNewMonth(e.target.value)}
-                    placeholder="Ej: Mayo 2024"
+                    min="2000-01"
+                    max="2100-12"
                     className="border-plum/20 text-ink ring-primary/20 rounded-lg border bg-white px-3 py-2 text-sm transition outline-none focus:ring-2"
                   />
                   <Button
@@ -406,6 +404,8 @@ export function StudentDetail() {
                   />
                   <input
                     type="number"
+                    min="0"
+                    step="0.01"
                     value={newClass.classPrice}
                     onChange={(e) =>
                       setNewClass({ ...newClass, classPrice: e.target.value })
@@ -424,11 +424,13 @@ export function StudentDetail() {
                   <label className="text-plum flex items-center gap-2 text-sm">
                     <input
                       type="checkbox"
-                      checked={newClass.classPaid}
+                      checked={newClass.classPaymentStatus === "PAID"}
                       onChange={(e) =>
                         setNewClass({
                           ...newClass,
-                          classPaid: e.target.checked,
+                          classPaymentStatus: e.target.checked
+                            ? "PAID"
+                            : "PENDING",
                         })
                       }
                       className="border-plum/30 text-primary focus:ring-primary h-4 w-4 rounded"
@@ -458,6 +460,9 @@ export function StudentDetail() {
                     className="border-plum/20 text-ink ring-primary/20 rounded-lg border bg-white px-3 py-2 text-sm transition outline-none focus:ring-2"
                   />
                   <input
+                    type="number"
+                    min="0"
+                    step="0.01"
                     value={newClass.ovenPrice}
                     onChange={(e) =>
                       setNewClass({ ...newClass, ovenPrice: e.target.value })
@@ -468,9 +473,14 @@ export function StudentDetail() {
                   <label className="text-plum flex items-center gap-2 text-sm">
                     <input
                       type="checkbox"
-                      checked={newClass.ovenPaid}
+                      checked={newClass.ovenPaymentStatus === "PAID"}
                       onChange={(e) =>
-                        setNewClass({ ...newClass, ovenPaid: e.target.checked })
+                        setNewClass({
+                          ...newClass,
+                          ovenPaymentStatus: e.target.checked
+                            ? "PAID"
+                            : "PENDING",
+                        })
                       }
                       className="border-plum/30 text-primary focus:ring-primary h-4 w-4 rounded"
                     />
@@ -485,6 +495,9 @@ export function StudentDetail() {
                     className="border-plum/20 text-ink ring-primary/20 rounded-lg border bg-white px-3 py-2 text-sm transition outline-none focus:ring-2"
                   />
                   <input
+                    type="number"
+                    min="0"
+                    step="0.01"
                     value={newClass.materialPrice}
                     onChange={(e) =>
                       setNewClass({
@@ -498,11 +511,13 @@ export function StudentDetail() {
                   <label className="text-plum flex items-center gap-2 text-sm">
                     <input
                       type="checkbox"
-                      checked={newClass.materialPaid}
+                      checked={newClass.materialPaymentStatus === "PAID"}
                       onChange={(e) =>
                         setNewClass({
                           ...newClass,
-                          materialPaid: e.target.checked,
+                          materialPaymentStatus: e.target.checked
+                            ? "PAID"
+                            : "PENDING",
                         })
                       }
                       className="border-plum/30 text-primary focus:ring-primary h-4 w-4 rounded"
@@ -547,15 +562,15 @@ export function StudentDetail() {
                         className: "",
                         classPrice: "",
                         classDay: "",
-                        classPaid: false,
+                        classPaymentStatus: "PENDING",
                         monthId: cls.monthId ?? null,
                         assistance: cls.assistance ?? false,
                         ovenName: cls.ovenName ?? "",
                         ovenPrice: cls.ovenPrice ?? "",
-                        ovenPaid: cls.ovenPaid ?? false,
+                        ovenPaymentStatus: cls.ovenPaymentStatus,
                         materialName: cls.materialName ?? "",
                         materialPrice: cls.materialPrice ?? "",
-                        materialPaid: cls.materialPaid ?? false,
+                        materialPaymentStatus: cls.materialPaymentStatus,
                       };
                       return (
                         <div
@@ -596,6 +611,8 @@ export function StudentDetail() {
                             />
                             <input
                               type="number"
+                              min="0"
+                              step="0.01"
                               value={draft.classPrice}
                               onChange={(e) =>
                                 setClassDrafts((prev) => ({
@@ -626,13 +643,15 @@ export function StudentDetail() {
                             <label className="text-plum flex items-center gap-2 text-sm">
                               <input
                                 type="checkbox"
-                                checked={draft.classPaid}
+                                checked={draft.classPaymentStatus === "PAID"}
                                 onChange={(e) =>
                                   setClassDrafts((prev) => ({
                                     ...prev,
                                     [cls.id]: {
                                       ...(prev[cls.id] ?? draft),
-                                      classPaid: e.target.checked,
+                                      classPaymentStatus: e.target.checked
+                                        ? "PAID"
+                                        : "PENDING",
                                     },
                                   }))
                                 }
@@ -672,6 +691,9 @@ export function StudentDetail() {
                               className="border-plum/20 text-ink ring-primary/20 rounded-lg border bg-white px-3 py-2 text-sm transition outline-none focus:ring-2"
                             />
                             <input
+                              type="number"
+                              min="0"
+                              step="0.01"
                               value={draft.ovenPrice}
                               onChange={(e) =>
                                 setClassDrafts((prev) => ({
@@ -688,13 +710,15 @@ export function StudentDetail() {
                             <label className="text-plum flex items-center gap-2 text-sm">
                               <input
                                 type="checkbox"
-                                checked={draft.ovenPaid}
+                                checked={draft.ovenPaymentStatus === "PAID"}
                                 onChange={(e) =>
                                   setClassDrafts((prev) => ({
                                     ...prev,
                                     [cls.id]: {
                                       ...(prev[cls.id] ?? draft),
-                                      ovenPaid: e.target.checked,
+                                      ovenPaymentStatus: e.target.checked
+                                        ? "PAID"
+                                        : "PENDING",
                                     },
                                   }))
                                 }
@@ -717,6 +741,9 @@ export function StudentDetail() {
                               className="border-plum/20 text-ink ring-primary/20 rounded-lg border bg-white px-3 py-2 text-sm transition outline-none focus:ring-2"
                             />
                             <input
+                              type="number"
+                              min="0"
+                              step="0.01"
                               value={draft.materialPrice}
                               onChange={(e) =>
                                 setClassDrafts((prev) => ({
@@ -733,13 +760,15 @@ export function StudentDetail() {
                             <label className="text-plum flex items-center gap-2 text-sm">
                               <input
                                 type="checkbox"
-                                checked={draft.materialPaid}
+                                checked={draft.materialPaymentStatus === "PAID"}
                                 onChange={(e) =>
                                   setClassDrafts((prev) => ({
                                     ...prev,
                                     [cls.id]: {
                                       ...(prev[cls.id] ?? draft),
-                                      materialPaid: e.target.checked,
+                                      materialPaymentStatus: e.target.checked
+                                        ? "PAID"
+                                        : "PENDING",
                                     },
                                   }))
                                 }
@@ -803,18 +832,18 @@ export function StudentDetail() {
                       </div>
                       <span className="text-plum/60 text-xs">
                         {cls.classDay
-                          ? new Date(cls.classDay).toLocaleDateString("es-AR")
+                          ? formatCalendarDate(cls.classDay)
                           : "Sin fecha"}
                       </span>
                     </div>
                     <div className="mt-3 grid grid-cols-1 gap-2 text-sm md:grid-cols-2">
                       <p className="text-plum/80">
                         <span className="text-plum font-semibold">Precio:</span>{" "}
-                        ${Number(cls.classPrice ?? 0).toLocaleString("es-AR")}
+                        {formatMoney(cls.classPrice)}
                       </p>
                       <p className="text-plum/80">
                         <span className="text-plum font-semibold">Pagado:</span>{" "}
-                        {cls.classPaid ? "Sí" : "No"}
+                        {cls.classPaymentStatus === "PAID" ? "Sí" : "No"}
                       </p>
                       <p className="text-plum/80">
                         <span className="text-plum font-semibold">
@@ -830,31 +859,31 @@ export function StudentDetail() {
                         <span className="text-plum font-semibold">
                           Precio horno:
                         </span>{" "}
-                        {cls.ovenPrice ? `$${cls.ovenPrice}` : "—"}
+                        {formatMoney(cls.ovenPrice)}
                       </p>
                       <p className="text-plum/80">
                         <span className="text-plum font-semibold">
                           Horno pagado:
                         </span>{" "}
-                        {cls.ovenPaid ? "Sí" : "No"}
+                        {cls.ovenPaymentStatus === "PAID" ? "Sí" : "No"}
                       </p>
                       <p className="text-plum/80">
                         <span className="text-plum font-semibold">
                           Material:
                         </span>{" "}
-                        {cls.materialName || "—"}
+                        {cls.materialName?.trim() ? cls.materialName : "—"}
                       </p>
                       <p className="text-plum/80">
                         <span className="text-plum font-semibold">
                           Precio material:
                         </span>{" "}
-                        {cls.materialPrice ? `$${cls.materialPrice}` : "—"}
+                        {formatMoney(cls.materialPrice)}
                       </p>
                       <p className="text-plum/80">
                         <span className="text-plum font-semibold">
                           Material pagado:
                         </span>{" "}
-                        {cls.materialPaid ? "Sí" : "No"}
+                        {cls.materialPaymentStatus === "PAID" ? "Sí" : "No"}
                       </p>
                     </div>
                   </div>

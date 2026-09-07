@@ -1,6 +1,15 @@
-import { Prisma } from "@prisma/client";
-import type { Timetable } from "@prisma/client";
+import {
+  Prisma,
+  type PaymentStatus,
+  type Timetable,
+  type Weekday,
+} from "@prisma/client";
 
+import {
+  calendarDateFromDatabase,
+  calendarDateToDatabase,
+} from "~/lib/domain/calendar-date";
+import { calculateFinancialSummary } from "~/lib/domain/money";
 import { createTRPCRouter, publicProcedure } from "~/server/api/trpc";
 import {
   deleteClassInput,
@@ -13,55 +22,43 @@ import {
   updateClassInput,
 } from "~/types/students";
 import type { StudentWithMonths } from "~/types/students";
+import { formatMonth } from "~/types/utils";
 
-// Map between Prisma enum names and the readable timetable strings used by
-// the frontend and zod validation. Prisma enum values are defined in
-// prisma/schema.prisma as: TEN @map("10:00"), SIXTEEN @map("16:00"),
-// EIGHTEEN @map("18:30"). The Prisma client will expose the enum *names*
-// (TEN, SIXTEEN, EIGHTEEN) in JS, so we translate back and forth.
-const TIMETABLE_MAP: Record<string, string> = {
+const TIMETABLE_MAP: Record<string, "10:00" | "16:00" | "18:30"> = {
   TEN: "10:00",
   SIXTEEN: "16:00",
   EIGHTEEN: "18:30",
+  "10:00": "10:00",
+  "16:00": "16:00",
+  "18:30": "18:30",
 };
 
-const timetableNameToValue = (name?: string | null) => {
-  if (!name) return undefined;
-  return TIMETABLE_MAP[name] ?? undefined;
-};
+const TIMETABLE_REVERSE_MAP = {
+  "10:00": "TEN",
+  "16:00": "SIXTEEN",
+  "18:30": "EIGHTEEN",
+} as const;
 
-const timetableValueToName = (value?: string | null) => {
-  if (!value) return undefined;
-  const entry = Object.entries(TIMETABLE_MAP).find(([, v]) => v === value);
-  return entry ? entry[0] : undefined;
-};
-
-const DAY_ORDER = [
-  "lunes",
-  "martes",
-  "miercoles",
-  "jueves",
-  "viernes",
-  "sabado",
-  "domingo",
+const WEEKDAY_ORDER: Weekday[] = [
+  "MONDAY",
+  "TUESDAY",
+  "WEDNESDAY",
+  "THURSDAY",
+  "FRIDAY",
+  "SATURDAY",
+  "SUNDAY",
 ];
 
 const TIMETABLE_ORDER = ["10:00", "16:00", "18:30"];
 
-const normalizeDay = (value?: string | null) =>
-  value
-    ? value
-        .trim()
-        .toLowerCase()
-        .replace(/á/g, "a")
-        .replace(/é/g, "e")
-        .replace(/í/g, "i")
-        .replace(/ó/g, "o")
-        .replace(/ú/g, "u")
-    : "";
+const timetableNameToValue = (name?: Timetable | null) =>
+  name ? (TIMETABLE_MAP[String(name)] ?? null) : null;
 
-const getDayRank = (value?: string | null) => {
-  const index = DAY_ORDER.indexOf(normalizeDay(value));
+const timetableValueToName = (value?: "10:00" | "16:00" | "18:30" | null) =>
+  value ? (TIMETABLE_REVERSE_MAP[value] as Timetable) : null;
+
+const getDayRank = (value?: Weekday | null) => {
+  const index = value ? WEEKDAY_ORDER.indexOf(value) : -1;
   return index === -1 ? Number.POSITIVE_INFINITY : index;
 };
 
@@ -70,14 +67,33 @@ const getTimetableRank = (value?: string | null) => {
   return index === -1 ? Number.POSITIVE_INFINITY : index;
 };
 
+const dateUpdate = (value: string | null | undefined) => {
+  if (value === undefined) return undefined;
+  return value === null ? null : calendarDateToDatabase(value);
+};
+
+const mapClass = <
+  T extends StudentWithMonths["months"][number]["classes"][number],
+>(
+  cls: T,
+) => ({
+  ...cls,
+  classDay: calendarDateFromDatabase(cls.classDay),
+  classPrice: cls.classPrice.toFixed(2),
+  ovenPrice: cls.ovenPrice.toFixed(2),
+  materialPrice: cls.materialPrice.toFixed(2),
+});
+
 const mapStudent = (student: StudentWithMonths) => {
   const months = student.months.map((month) => ({
     id: month.id,
-    label: month.label,
+    year: month.year,
+    month: month.month,
+    label: formatMonth(month.year, month.month),
     createdAt: month.createdAt,
     updatedAt: month.updatedAt,
     studentId: month.studentId,
-    classes: month.classes,
+    classes: month.classes.map(mapClass),
   }));
 
   const classes = months.flatMap((month) =>
@@ -87,20 +103,42 @@ const mapStudent = (student: StudentWithMonths) => {
     })),
   );
 
+  const financialSummary = calculateFinancialSummary(
+    classes.flatMap((cls) => [
+      { amount: cls.classPrice, status: cls.classPaymentStatus },
+      { amount: cls.ovenPrice, status: cls.ovenPaymentStatus },
+      { amount: cls.materialPrice, status: cls.materialPaymentStatus },
+    ]),
+  );
+
   return {
     id: student.id,
     name: student.name,
-    birthday: student.birthday,
+    birthday: calendarDateFromDatabase(student.birthday),
     telephone: student.telephone,
-    day: student.day,
-    // Prisma returns the enum name (e.g. EIGHTEEN). Convert to the
-    // user-facing mapped value (e.g. "18:30") before sending to client.
+    weekday: student.weekday,
     timetable: timetableNameToValue(student.timetable),
+    isActive: student.isActive,
     createdAt: student.createdAt,
     updatedAt: student.updatedAt,
     months,
     classes,
+    financialSummary,
   };
+};
+
+const studentRelations = {
+  months: {
+    orderBy: [{ year: "desc" as const }, { month: "desc" as const }],
+    include: {
+      classes: {
+        orderBy: [
+          { classDay: { sort: "asc" as const, nulls: "last" as const } },
+          { id: "asc" as const },
+        ],
+      },
+    },
+  },
 };
 
 export const studentsRouter = createTRPCRouter({
@@ -116,11 +154,12 @@ export const studentsRouter = createTRPCRouter({
               },
             }
           : undefined,
-        include: { months: { include: { classes: true } } },
+        include: studentRelations,
       });
 
       return students.map(mapStudent).sort((a, b) => {
-        const dayDiff = getDayRank(a.day) - getDayRank(b.day);
+        if (a.isActive !== b.isActive) return a.isActive ? -1 : 1;
+        const dayDiff = getDayRank(a.weekday) - getDayRank(b.weekday);
         if (dayDiff !== 0) return dayDiff;
         const timeDiff =
           getTimetableRank(a.timetable) - getTimetableRank(b.timetable);
@@ -132,7 +171,7 @@ export const studentsRouter = createTRPCRouter({
   byId: publicProcedure.input(studentIdInput).query(async ({ ctx, input }) => {
     const student = await ctx.db.student.findUnique({
       where: { id: input.id },
-      include: { months: { include: { classes: true } } },
+      include: studentRelations,
     });
 
     return student ? mapStudent(student) : null;
@@ -141,47 +180,51 @@ export const studentsRouter = createTRPCRouter({
   create: publicProcedure
     .input(studentCreateInput)
     .mutation(async ({ ctx, input }) => {
-      const name =
-        input.name.trim().length > 0
-          ? input.name.trim().charAt(0).toUpperCase() +
-            input.name.trim().slice(1)
-          : input.name.trim();
+      const trimmedName = input.name.trim();
+      const name = trimmedName.charAt(0).toUpperCase() + trimmedName.slice(1);
       const student = await ctx.db.student.create({
         data: {
           name,
-          birthday: input.birthday ? new Date(input.birthday) : undefined,
-          telephone: input.telephone,
-          day: input.day,
-          timetable: timetableValueToName(input.timetable) as
-            | Timetable
-            | undefined,
+          birthday: input.birthday
+            ? calendarDateToDatabase(input.birthday)
+            : null,
+          telephone: input.telephone?.trim() ?? null,
+          weekday: (input.weekday as Weekday | null | undefined) ?? null,
+          timetable: timetableValueToName(input.timetable),
+          isActive: input.isActive ?? true,
         },
-        include: { months: { include: { classes: true } } },
+        include: studentRelations,
       });
-      return mapStudent(student as StudentWithMonths);
+      return mapStudent(student);
     }),
 
   update: publicProcedure
     .input(studentUpdateInput)
     .mutation(async ({ ctx, input }) => {
       const { id, ...rest } = input;
+      const trimmedName = rest.name?.trim();
       const updated = await ctx.db.student.update({
         where: { id },
         data: {
-          name: rest.name
-            ? rest.name.trim().charAt(0).toUpperCase() +
-              rest.name.trim().slice(1)
+          name: trimmedName
+            ? trimmedName.charAt(0).toUpperCase() + trimmedName.slice(1)
             : undefined,
-          birthday: rest.birthday ? new Date(rest.birthday) : undefined,
-          telephone: rest.telephone,
-          day: rest.day,
-          timetable: timetableValueToName(rest.timetable) as
-            | Timetable
-            | undefined,
+          birthday: dateUpdate(rest.birthday),
+          telephone:
+            rest.telephone === undefined ? undefined : rest.telephone || null,
+          weekday:
+            rest.weekday === undefined
+              ? undefined
+              : (rest.weekday as Weekday | null),
+          timetable:
+            rest.timetable === undefined
+              ? undefined
+              : timetableValueToName(rest.timetable),
+          isActive: rest.isActive,
         },
-        include: { months: { include: { classes: true } } },
+        include: studentRelations,
       });
-      return mapStudent(updated as StudentWithMonths);
+      return mapStudent(updated);
     }),
 
   delete: publicProcedure
@@ -200,20 +243,17 @@ export const studentsRouter = createTRPCRouter({
     .mutation(async ({ ctx, input }) => {
       const studentExists = await ctx.db.student.findUnique({
         where: { id: input.studentId },
+        select: { id: true },
       });
-      if (!studentExists) {
-        throw new Error("Student not found");
-      }
+      if (!studentExists) throw new Error("Student not found");
 
-      const label = input.label.trim();
-      const month = await ctx.db.month.create({
+      return ctx.db.month.create({
         data: {
-          label,
+          year: input.year,
+          month: input.month,
           studentId: input.studentId,
         },
       });
-
-      return month;
     }),
 
   addClass: publicProcedure
@@ -221,31 +261,33 @@ export const studentsRouter = createTRPCRouter({
     .mutation(async ({ ctx, input }) => {
       const month = await ctx.db.month.findFirst({
         where: { id: input.monthId, studentId: input.studentId },
+        select: { id: true },
       });
-      if (!month) {
-        throw new Error("Month not found for student");
-      }
+      if (!month) throw new Error("Month not found for student");
 
       await ctx.db.class.create({
         data: {
-          className: input.className,
+          className: input.className.trim(),
           assistance: input.assistance ?? false,
           classPrice: new Prisma.Decimal(input.classPrice),
-          classDay: input.classDay ? new Date(input.classDay) : undefined,
-          classPaid: input.classPaid ?? false,
-          ovenName: input.ovenName,
-          ovenPrice: input.ovenPrice ?? "",
-          ovenPaid: input.ovenPaid ?? false,
-          materialName: input.materialName ?? "",
-          materialPrice: input.materialPrice ?? "",
-          materialPaid: input.materialPaid ?? false,
+          classDay: dateUpdate(input.classDay),
+          classPaymentStatus: (input.classPaymentStatus ??
+            "PENDING") as PaymentStatus,
+          ovenName: input.ovenName?.trim() ?? null,
+          ovenPrice: new Prisma.Decimal(input.ovenPrice ?? "0.00"),
+          ovenPaymentStatus: (input.ovenPaymentStatus ??
+            "PENDING") as PaymentStatus,
+          materialName: input.materialName?.trim() ?? null,
+          materialPrice: new Prisma.Decimal(input.materialPrice ?? "0.00"),
+          materialPaymentStatus: (input.materialPaymentStatus ??
+            "PENDING") as PaymentStatus,
           monthId: input.monthId,
         },
       });
 
       const student = await ctx.db.student.findUnique({
         where: { id: input.studentId },
-        include: { months: { include: { classes: true } } },
+        include: studentRelations,
       });
 
       return student ? mapStudent(student) : null;
@@ -257,20 +299,38 @@ export const studentsRouter = createTRPCRouter({
       const updated = await ctx.db.class.update({
         where: { id: input.classId },
         data: {
-          className: input.className,
-          assistance: input.assistance ?? undefined,
+          className: input.className.trim(),
+          assistance: input.assistance,
           classPrice: new Prisma.Decimal(input.classPrice),
-          classDay: input.classDay ? new Date(input.classDay) : undefined,
-          classPaid: input.classPaid ?? undefined,
-          ovenName: input.ovenName,
-          ovenPrice: input.ovenPrice,
-          ovenPaid: input.ovenPaid ?? undefined,
-          materialName: input.materialName,
-          materialPrice: input.materialPrice,
-          materialPaid: input.materialPaid ?? undefined,
+          classDay: dateUpdate(input.classDay),
+          classPaymentStatus: input.classPaymentStatus as
+            | PaymentStatus
+            | undefined,
+          ovenName:
+            input.ovenName === undefined
+              ? undefined
+              : input.ovenName.trim() || null,
+          ovenPrice:
+            input.ovenPrice === undefined
+              ? undefined
+              : new Prisma.Decimal(input.ovenPrice),
+          ovenPaymentStatus: input.ovenPaymentStatus as
+            | PaymentStatus
+            | undefined,
+          materialName:
+            input.materialName === undefined
+              ? undefined
+              : input.materialName.trim() || null,
+          materialPrice:
+            input.materialPrice === undefined
+              ? undefined
+              : new Prisma.Decimal(input.materialPrice),
+          materialPaymentStatus: input.materialPaymentStatus as
+            | PaymentStatus
+            | undefined,
         },
       });
-      return updated;
+      return mapClass(updated);
     }),
 
   deleteClass: publicProcedure
@@ -283,12 +343,12 @@ export const studentsRouter = createTRPCRouter({
   classes: publicProcedure.query(async ({ ctx }) => {
     const classes = await ctx.db.class.findMany({
       include: { month: { include: { student: true } } },
-      orderBy: { createdAt: "desc" },
+      orderBy: [{ classDay: { sort: "desc", nulls: "last" } }, { id: "desc" }],
     });
 
     return classes.map((cls) => ({
-      ...cls,
-      monthLabel: cls.month.label,
+      ...mapClass(cls),
+      monthLabel: formatMonth(cls.month.year, cls.month.month),
       studentId: cls.month.studentId,
       studentName: cls.month.student.name,
     }));

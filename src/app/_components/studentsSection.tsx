@@ -3,7 +3,7 @@ import { ButtonM } from "./button";
 import Link from "next/link";
 import { LuTrash2 } from "react-icons/lu";
 import {
-  getDayFromString,
+  getWeekday,
   parseTimeToMinutes,
   WEEK_DAYS,
   type Student,
@@ -36,12 +36,12 @@ export const StudentsSection = ({
   const groupedStudents = useMemo(() => {
     if (!students) return [];
     const dayMap = new Map<
-      number | "unscheduled",
+      (typeof WEEK_DAYS)[number]["value"] | "unscheduled",
       { label: string; times: Map<string, Student[]> }
     >();
 
     for (const student of students) {
-      const preferredDay = getDayFromString(student.day ?? undefined);
+      const preferredDay = getWeekday(student.weekday);
       const dayKey = preferredDay?.value ?? "unscheduled";
       const dayLabel = preferredDay?.label ?? "Sin día";
       const time = student.timetable?.trim() ?? "Sin horario";
@@ -127,10 +127,15 @@ export const StudentsSection = ({
                               {student.name}
                             </Title>
                             <Text className="text-plum/70 text-xs">
-                              {student.day
-                                ? `Día: ${student.day}`
+                              {getWeekday(student.weekday)
+                                ? `Día: ${getWeekday(student.weekday)?.label}`
                                 : "Sin día asignado"}
                             </Text>
+                            {!student.isActive ? (
+                              <Text className="text-primary text-xs font-semibold">
+                                Inactivo
+                              </Text>
+                            ) : null}
                             <Text className="text-plum/60 text-xs">
                               {student.classes.length} clases
                             </Text>

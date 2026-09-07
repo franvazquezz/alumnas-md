@@ -111,6 +111,10 @@ versionados. El proyecto Vercel continúa pausado hasta la autenticación.
 
 ## 5. Fase 2 — Reglas de dominio confiables
 
+**Estado:** implementación completa el 2 de septiembre de 2026. La migración y
+los flujos fueron validados sobre bases descartables; queda pendiente aplicarla
+en la copia local y Neon durante una ventana controlada con respaldo.
+
 ### Fechas
 
 1. Representar cumpleaños y fecha de clase como fecha de calendario sin conversión UTC implícita.

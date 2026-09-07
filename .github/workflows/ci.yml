@@ -47,6 +47,9 @@ jobs:
       - name: Typecheck
         run: pnpm typecheck
 
+      - name: Test domain rules
+        run: pnpm test
+
       - name: Build
         run: pnpm build
 

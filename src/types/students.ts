@@ -1,13 +1,42 @@
 import type { Prisma } from "@prisma/client";
 import { z } from "zod";
+import { isCalendarDate } from "~/lib/domain/calendar-date";
+import { normalizeMoney, type PaymentStatusValue } from "~/lib/domain/money";
 
 export const numericId = z.coerce.number().int().positive();
 
-export const dateString = z
+export const calendarDateInput = z
   .string()
-  .optional()
-  .refine((val) => !val || !Number.isNaN(Date.parse(val)), {
-    message: "Invalid date",
+  .refine(isCalendarDate, "La fecha debe tener el formato AAAA-MM-DD");
+
+export const optionalCalendarDateInput = calendarDateInput
+  .nullable()
+  .optional();
+
+export const weekdayInput = z.enum([
+  "MONDAY",
+  "TUESDAY",
+  "WEDNESDAY",
+  "THURSDAY",
+  "FRIDAY",
+  "SATURDAY",
+  "SUNDAY",
+]);
+
+export const paymentStatusInput = z.enum(["PENDING", "PAID"]);
+
+export const moneyInput = z
+  .union([z.string(), z.number()])
+  .transform((value, context) => {
+    const normalized = normalizeMoney(value);
+    if (!normalized) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "El importe debe ser positivo y tener hasta dos decimales",
+      });
+      return z.NEVER;
+    }
+    return normalized;
   });
 
 export const studentSearchInput = z
@@ -18,40 +47,41 @@ export const studentIdInput = z.object({ id: numericId });
 
 export const studentCreateInput = z.object({
   name: z.string().min(1),
-  birthday: dateString,
+  birthday: optionalCalendarDateInput,
   telephone: z.string().optional(),
-  day: z.string().optional(),
+  weekday: weekdayInput.nullable().optional(),
   timetable: z.enum(["10:00", "16:00", "18:30"]).optional(),
+  isActive: z.boolean().optional(),
 });
 
 export const studentUpdateInput = z.object({
   id: numericId,
   name: z.string().min(1).optional(),
-  birthday: dateString,
+  birthday: optionalCalendarDateInput,
   telephone: z.string().optional(),
-  day: z.string().optional(),
+  weekday: weekdayInput.nullable().optional(),
   timetable: z.enum(["10:00", "16:00", "18:30"]).optional(),
+  isActive: z.boolean().optional(),
 });
 
 export const monthInput = z.object({
   studentId: numericId,
-  label: z.string().min(1),
+  year: z.number().int().min(2000).max(2100),
+  month: z.number().int().min(1).max(12),
 });
 
 export const classBaseInput = z.object({
   className: z.string().min(1),
   assistance: z.boolean().optional(),
-  classPrice: z
-    .union([z.number(), z.string()])
-    .transform((val) => (typeof val === "number" ? val : Number(val))),
-  classDay: dateString,
-  classPaid: z.boolean().optional(),
+  classPrice: moneyInput,
+  classDay: optionalCalendarDateInput,
+  classPaymentStatus: paymentStatusInput.optional(),
   ovenName: z.string().optional(),
-  ovenPrice: z.string().optional(),
-  ovenPaid: z.boolean().optional(),
+  ovenPrice: moneyInput.optional(),
+  ovenPaymentStatus: paymentStatusInput.optional(),
   materialName: z.string().optional(),
-  materialPrice: z.string().optional(),
-  materialPaid: z.boolean().optional(),
+  materialPrice: moneyInput.optional(),
+  materialPaymentStatus: paymentStatusInput.optional(),
 });
 
 export const newClassInput = classBaseInput.extend({
@@ -74,26 +104,28 @@ export type StudentWithMonths = Prisma.StudentGetPayload<{
 }>;
 
 export type TimetableOption = "10:00" | "16:00" | "18:30" | undefined;
+export type WeekdayOption = z.infer<typeof weekdayInput>;
 
 export type StudentFormState = {
   name: string;
   birthday: string;
   telephone: string;
-  day: string;
+  weekday: WeekdayOption | null;
   timetable: TimetableOption;
+  isActive: boolean;
 };
 
 export type ClassFormState = {
   className: string;
   classPrice: string;
   classDay: string;
-  classPaid: boolean;
+  classPaymentStatus: PaymentStatusValue;
   monthId: number | null;
   assistance: boolean;
   ovenName: string;
   ovenPrice: string;
-  ovenPaid: boolean;
+  ovenPaymentStatus: PaymentStatusValue;
   materialName: string;
   materialPrice: string;
-  materialPaid: boolean;
+  materialPaymentStatus: PaymentStatusValue;
 };

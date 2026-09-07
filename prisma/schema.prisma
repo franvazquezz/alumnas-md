@@ -2,58 +2,75 @@
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
 
 generator client {
-    provider = "prisma-client-js"
+  provider = "prisma-client-js"
 }
 
 datasource db {
-    provider = "postgresql"
+  provider = "postgresql"
 }
 
 model Student {
-    id        Int        @id @default(autoincrement())
-    name      String
-    birthday  DateTime?  @db.Date
-    telephone String?
-    day       String?
-    timetable Timetable?
-    months    Month[]
-    createdAt DateTime   @default(now())
-    updatedAt DateTime   @updatedAt
+  id        Int        @id @default(autoincrement())
+  name      String
+  birthday  DateTime?  @db.Date
+  telephone String?
+  weekday   Weekday?
+  timetable Timetable?
+  isActive  Boolean    @default(true)
+  months    Month[]
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
 }
 
 model Month {
-    id        Int      @id @default(autoincrement())
-    label     String
-    student   Student  @relation(fields: [studentId], references: [id])
-    studentId Int
-    classes   Class[]
-    createdAt DateTime @default(now())
-    updatedAt DateTime @updatedAt
+  id        Int      @id @default(autoincrement())
+  year      Int
+  month     Int
+  student   Student  @relation(fields: [studentId], references: [id])
+  studentId Int
+  classes   Class[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-    @@unique([studentId, label])
+  @@unique([studentId, year, month])
 }
 
 model Class {
-    id            Int       @id @default(autoincrement())
-    className     String
-    assistance    Boolean   @default(false)
-    classDay      DateTime? @db.Date
-    classPrice    Decimal
-    classPaid     Boolean   @default(false)
-    ovenName      String?
-    ovenPrice     String
-    ovenPaid      Boolean   @default(false)
-    materialName  String
-    materialPrice String
-    materialPaid  Boolean   @default(false)
-    month         Month     @relation(fields: [monthId], references: [id])
-    monthId       Int
-    createdAt     DateTime  @default(now())
-    updatedAt     DateTime  @updatedAt
+  id                    Int           @id @default(autoincrement())
+  className             String
+  assistance            Boolean       @default(false)
+  classDay              DateTime?     @db.Date
+  classPrice            Decimal       @db.Decimal(12, 2)
+  classPaymentStatus    PaymentStatus @default(PENDING)
+  ovenName              String?
+  ovenPrice             Decimal       @default(0) @db.Decimal(12, 2)
+  ovenPaymentStatus     PaymentStatus @default(PENDING)
+  materialName          String?
+  materialPrice         Decimal       @default(0) @db.Decimal(12, 2)
+  materialPaymentStatus PaymentStatus @default(PENDING)
+  month                 Month         @relation(fields: [monthId], references: [id])
+  monthId               Int
+  createdAt             DateTime      @default(now())
+  updatedAt             DateTime      @updatedAt
 }
 
 enum Timetable {
-    TEN      @map("10:00")
-    SIXTEEN  @map("16:00")
-    EIGHTEEN @map("18:30")
+  TEN      @map("10:00")
+  SIXTEEN  @map("16:00")
+  EIGHTEEN @map("18:30")
+}
+
+enum Weekday {
+  MONDAY
+  TUESDAY
+  WEDNESDAY
+  THURSDAY
+  FRIDAY
+  SATURDAY
+  SUNDAY
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
 }

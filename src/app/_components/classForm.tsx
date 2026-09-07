@@ -50,6 +50,8 @@ export const ClassForm = ({
       />
       <input
         type="number"
+        min="0"
+        step="0.01"
         value={draft.classPrice}
         onChange={(e) => onChange({ classPrice: e.target.value })}
         placeholder="Precio"
@@ -64,8 +66,12 @@ export const ClassForm = ({
       <label className="text-plum flex items-center gap-2 text-sm">
         <input
           type="checkbox"
-          checked={draft.classPaid}
-          onChange={(e) => onChange({ classPaid: e.target.checked })}
+          checked={draft.classPaymentStatus === "PAID"}
+          onChange={(e) =>
+            onChange({
+              classPaymentStatus: e.target.checked ? "PAID" : "PENDING",
+            })
+          }
           className="border-plum/30 text-primary focus:ring-primary h-4 w-4 rounded"
         />
         Pagado
@@ -86,6 +92,9 @@ export const ClassForm = ({
         className="border-plum/20 text-ink ring-primary/20 rounded-lg border bg-white px-3 py-2 text-sm transition outline-none focus:ring-2"
       />
       <input
+        type="number"
+        min="0"
+        step="0.01"
         value={draft.ovenPrice}
         onChange={(e) => onChange({ ovenPrice: e.target.value })}
         placeholder="Horno (precio)"
@@ -94,8 +103,12 @@ export const ClassForm = ({
       <label className="text-plum flex items-center gap-2 text-sm">
         <input
           type="checkbox"
-          checked={draft.ovenPaid}
-          onChange={(e) => onChange({ ovenPaid: e.target.checked })}
+          checked={draft.ovenPaymentStatus === "PAID"}
+          onChange={(e) =>
+            onChange({
+              ovenPaymentStatus: e.target.checked ? "PAID" : "PENDING",
+            })
+          }
           className="border-plum/30 text-primary focus:ring-primary h-4 w-4 rounded"
         />
         Horno pagado
@@ -107,6 +120,9 @@ export const ClassForm = ({
         className="border-plum/20 text-ink ring-primary/20 rounded-lg border bg-white px-3 py-2 text-sm transition outline-none focus:ring-2"
       />
       <input
+        type="number"
+        min="0"
+        step="0.01"
         value={draft.materialPrice}
         onChange={(e) => onChange({ materialPrice: e.target.value })}
         placeholder="Material (precio)"
@@ -115,8 +131,12 @@ export const ClassForm = ({
       <label className="text-plum flex items-center gap-2 text-sm">
         <input
           type="checkbox"
-          checked={draft.materialPaid}
-          onChange={(e) => onChange({ materialPaid: e.target.checked })}
+          checked={draft.materialPaymentStatus === "PAID"}
+          onChange={(e) =>
+            onChange({
+              materialPaymentStatus: e.target.checked ? "PAID" : "PENDING",
+            })
+          }
           className="border-plum/30 text-primary focus:ring-primary h-4 w-4 rounded"
         />
         Material pagado

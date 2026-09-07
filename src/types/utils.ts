@@ -1,19 +1,23 @@
 import { type RouterOutputs } from "~/trpc/react";
-import { type ClassFormState, type StudentFormState } from "./students";
+import {
+  type ClassFormState,
+  type StudentFormState,
+  type WeekdayOption,
+} from "./students";
 
 export const WEEK_DAYS = [
-  { value: 1, label: "Lunes", aliases: ["lunes", "lun", "mon"] },
-  { value: 2, label: "Martes", aliases: ["martes", "mar", "tue"] },
-  { value: 3, label: "Miércoles", aliases: ["miercoles", "mié", "mie", "wed"] },
-  { value: 4, label: "Jueves", aliases: ["jueves", "jue", "thu"] },
-  { value: 5, label: "Viernes", aliases: ["viernes", "vie", "fri"] },
-  { value: 6, label: "Sábado", aliases: ["sabado", "sáb", "sab", "sat"] },
-  { value: 0, label: "Domingo", aliases: ["domingo", "dom", "sun"] },
+  { value: "MONDAY", label: "Lunes" },
+  { value: "TUESDAY", label: "Martes" },
+  { value: "WEDNESDAY", label: "Miércoles" },
+  { value: "THURSDAY", label: "Jueves" },
+  { value: "FRIDAY", label: "Viernes" },
+  { value: "SATURDAY", label: "Sábado" },
+  { value: "SUNDAY", label: "Domingo" },
 ] as const;
 
 export type DayOption = (typeof WEEK_DAYS)[number];
 
-export type CalendarDayKey = DayOption["value"] | "unscheduled";
+export type CalendarDayKey = WeekdayOption | "unscheduled";
 
 export type CalendarEntry = {
   id: number;
@@ -29,47 +33,52 @@ export const emptyStudent: StudentFormState = {
   name: "",
   birthday: "",
   telephone: "",
-  day: "",
+  weekday: null,
   timetable: "10:00",
+  isActive: true,
 };
 
 export const emptyClassDraft: ClassFormState = {
   className: "",
   classPrice: "",
   classDay: "",
-  classPaid: false,
+  classPaymentStatus: "PENDING",
   monthId: null,
   assistance: false,
   ovenName: "",
   ovenPrice: "",
-  ovenPaid: false,
+  ovenPaymentStatus: "PENDING",
   materialName: "",
   materialPrice: "",
-  materialPaid: false,
+  materialPaymentStatus: "PENDING",
 };
 
 export type Student = RouterOutputs["students"]["list"][number];
 
+export const MONTH_NAMES = [
+  "Enero",
+  "Febrero",
+  "Marzo",
+  "Abril",
+  "Mayo",
+  "Junio",
+  "Julio",
+  "Agosto",
+  "Septiembre",
+  "Octubre",
+  "Noviembre",
+  "Diciembre",
+] as const;
+
 export const TIME_REGEX = /(\d{1,2}):(\d{2})/;
 
-export const sanitizeDay = (value: string) =>
-  value
-    .toLowerCase()
-    .replace(/á/g, "a")
-    .replace(/é/g, "e")
-    .replace(/í/g, "i")
-    .replace(/ó/g, "o")
-    .replace(/ú/g, "u");
-
-export const getDayFromString = (value?: string): DayOption | null => {
+export const getWeekday = (value?: WeekdayOption | null): DayOption | null => {
   if (!value) return null;
-  const normalized = sanitizeDay(value.trim());
-  return (
-    WEEK_DAYS.find((day) =>
-      day.aliases.some((alias) => normalized.startsWith(alias)),
-    ) ?? null
-  );
+  return WEEK_DAYS.find((day) => day.value === value) ?? null;
 };
+
+export const formatMonth = (year: number, month: number) =>
+  `${MONTH_NAMES[month - 1] ?? "Mes inválido"} ${year}`;
 
 export const parseTimeToMinutes = (time: string) => {
   const match = TIME_REGEX.exec(time);

@@ -5,6 +5,10 @@ import { api } from "~/trpc/react";
 import { type Student } from "~/types/utils";
 import { showNotification } from "@mantine/notifications";
 import { useParams } from "next/navigation";
+import { formatCalendarDate } from "~/lib/domain/calendar-date";
+import { formatMoney } from "~/lib/domain/money";
+import type { StudentFormState, WeekdayOption } from "~/types/students";
+import { getWeekday, WEEK_DAYS } from "~/types/utils";
 
 export const StudentPersonalDetail = ({
   data,
@@ -12,22 +16,8 @@ export const StudentPersonalDetail = ({
   setForm,
 }: {
   data: Student;
-  form: {
-    name: string;
-    birthday: string;
-    telephone: string;
-    day: string;
-    timetable: "10:00" | "16:00" | "18:30" | undefined;
-  };
-  setForm: React.Dispatch<
-    React.SetStateAction<{
-      name: string;
-      birthday: string;
-      telephone: string;
-      day: string;
-      timetable: "10:00" | "16:00" | "18:30" | undefined;
-    }>
-  >;
+  form: StudentFormState;
+  setForm: React.Dispatch<React.SetStateAction<StudentFormState>>;
 }) => {
   const { id } = useParams();
   const studentId = Number(id);
@@ -50,21 +40,15 @@ export const StudentPersonalDetail = ({
 
   const studentStats = useMemo(() => {
     if (!data) return null;
-    const totalAmount = data.classes.reduce(
-      (sum, cls) => sum + Number(cls.classPrice ?? 0),
-      0,
-    );
-    const paidAmount = data.classes
-      .filter((cls) => cls.classPaid)
-      .reduce((sum, cls) => sum + Number(cls.classPrice ?? 0), 0);
-    const pendingAmount = totalAmount - paidAmount;
     return {
       classes: data.classes.length,
-      paid: data.classes.filter((cls) => cls.classPaid).length,
-      pending: data.classes.filter((cls) => !cls.classPaid).length,
-      totalAmount,
-      paidAmount,
-      pendingAmount,
+      paidClasses: data.classes.filter(
+        (cls) => cls.classPaymentStatus === "PAID",
+      ).length,
+      pendingClasses: data.classes.filter(
+        (cls) => cls.classPaymentStatus === "PENDING",
+      ).length,
+      ...data.financialSummary,
     };
   }, [data]);
 
@@ -74,10 +58,11 @@ export const StudentPersonalDetail = ({
     updateStudent.mutate({
       id: studentId,
       name: form.name ?? undefined,
-      birthday: form.birthday ?? undefined,
+      birthday: form.birthday || null,
       telephone: form.telephone ?? undefined,
-      day: form.day ?? undefined,
+      weekday: form.weekday,
       timetable: form.timetable ?? undefined,
+      isActive: form.isActive,
     });
   };
   return (
@@ -102,19 +87,19 @@ export const StudentPersonalDetail = ({
               Clases: {studentStats.classes}
             </span>
             <span className="bg-secondary/20 text-plum rounded-xl px-3 py-2 font-semibold">
-              Pagadas: {studentStats.paid}
+              Pagadas: {studentStats.paidClasses}
             </span>
             <span className="text-plum/70 ring-plum/15 rounded-xl bg-white px-3 py-2 font-semibold ring-1">
-              Pendientes: {studentStats.pending}
+              Pendientes: {studentStats.pendingClasses}
             </span>
             <span className="text-plum/80 ring-plum/10 rounded-xl bg-white px-3 py-2 font-semibold ring-1">
-              $ Total: {studentStats.totalAmount.toLocaleString("es-AR")}
+              Total: {formatMoney(studentStats.total)}
             </span>
             <span className="text-primary/80 ring-primary/20 rounded-xl bg-white px-3 py-2 font-semibold ring-1">
-              $ Pagado: {studentStats.paidAmount.toLocaleString("es-AR")}
+              Pagado: {formatMoney(studentStats.paid)}
             </span>
             <span className="text-plum/70 ring-plum/15 rounded-xl bg-white px-3 py-2 font-semibold ring-1">
-              $ Pendiente: {studentStats.pendingAmount.toLocaleString("es-AR")}
+              Deuda: {formatMoney(studentStats.debt)}
             </span>
           </div>
         ) : null}
@@ -144,12 +129,23 @@ export const StudentPersonalDetail = ({
             placeholder="Teléfono"
             className="border-plum/20 text-ink ring-primary/20 rounded-xl border bg-white px-4 py-2 text-sm transition outline-none focus:ring-2"
           />
-          <input
-            value={form.day}
-            onChange={(e) => setForm({ ...form, day: e.target.value })}
-            placeholder="Día preferido"
+          <select
+            value={form.weekday ?? ""}
+            onChange={(e) =>
+              setForm({
+                ...form,
+                weekday: (e.target.value || null) as WeekdayOption | null,
+              })
+            }
             className="border-plum/20 text-ink ring-primary/20 rounded-xl border bg-white px-4 py-2 text-sm transition outline-none focus:ring-2"
-          />
+          >
+            <option value="">Sin día asignado</option>
+            {WEEK_DAYS.map((day) => (
+              <option key={day.value} value={day.value}>
+                {day.label}
+              </option>
+            ))}
+          </select>
           <select
             value={form.timetable}
             onChange={(e) =>
@@ -178,6 +174,15 @@ export const StudentPersonalDetail = ({
               18:30
             </option>
           </select>
+          <label className="text-plum flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={form.isActive}
+              onChange={(e) => setForm({ ...form, isActive: e.target.checked })}
+              className="border-plum/30 text-primary focus:ring-primary h-4 w-4 rounded"
+            />
+            Alumno activo
+          </label>
           <div className="flex justify-end md:col-span-2">
             <Button type="submit" loading={updateStudent.isPending}>
               <LuSave className="h-4 w-4" />
@@ -192,9 +197,7 @@ export const StudentPersonalDetail = ({
           </p>
           <p className="text-plum/80">
             <span className="text-plum font-semibold">Cumpleaños:</span>{" "}
-            {data.birthday
-              ? new Date(data.birthday).toLocaleDateString("es-AR")
-              : "—"}
+            {data.birthday ? formatCalendarDate(data.birthday) : "—"}
           </p>
           <p className="text-plum/80">
             <span className="text-plum font-semibold">Teléfono:</span>{" "}
@@ -202,7 +205,11 @@ export const StudentPersonalDetail = ({
           </p>
           <p className="text-plum/80">
             <span className="text-plum font-semibold">Día preferido:</span>{" "}
-            {data.day ?? "—"}
+            {getWeekday(data.weekday)?.label ?? "—"}
+          </p>
+          <p className="text-plum/80">
+            <span className="text-plum font-semibold">Estado:</span>{" "}
+            {data.isActive ? "Activo" : "Inactivo"}
           </p>
           <p className="text-plum/80">
             <span className="text-plum font-semibold">Horario:</span>{" "}

@@ -1,7 +1,7 @@
 # MD Cerámica
 
 Aplicación administrativa del taller MD Cerámica. Permite gestionar alumnas/os,
-meses, clases, asistencia y pagos.
+períodos mensuales, clases, asistencia y pagos.
 
 > El despliegue público está pausado hasta que la fase de autenticación proteja
 > los datos y las mutaciones. La aplicación no debe exponerse a Internet en su
@@ -102,9 +102,24 @@ pnpm build
 pnpm verify:css-theme
 ```
 
-`pnpm check` ejecuta formato, ESLint y TypeScript. GitHub Actions repite esas
-verificaciones, el build y el control del tema CSS generado con Node.js 20 en
-cada pull request y push a `main`.
+`pnpm check` ejecuta formato, ESLint, TypeScript y las pruebas unitarias de
+fechas, dinero y agenda. GitHub Actions repite esas verificaciones, el build y
+el control del tema CSS generado con Node.js 20 en cada pull request y push a
+`main`.
+
+## Reglas de dominio
+
+- Los cumpleaños y días de clase se intercambian como `AAAA-MM-DD`; no deben
+  convertirse a instantes locales en la interfaz.
+- Los importes usan `Decimal(12,2)`, aceptan como mínimo cero y el total incluye
+  clase, horno y materiales.
+- Cada importe tiene estado `PENDING` o `PAID`.
+- Los meses se identifican por `year + month` y los días semanales por el enum
+  `Weekday`.
+- Las fichas de estudiantes pueden estar activas o inactivas.
+
+El procedimiento de aplicación y control de la fase 2 está en
+`docs/FASE_2_RUNBOOK.md`.
 
 ## Despliegue
 
