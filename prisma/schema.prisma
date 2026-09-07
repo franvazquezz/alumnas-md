@@ -10,16 +10,155 @@ datasource db {
 }
 
 model Student {
-  id        Int        @id @default(autoincrement())
-  name      String
-  birthday  DateTime?  @db.Date
-  telephone String?
-  weekday   Weekday?
-  timetable Timetable?
-  isActive  Boolean    @default(true)
-  months    Month[]
-  createdAt DateTime   @default(now())
-  updatedAt DateTime   @updatedAt
+  id          Int          @id @default(autoincrement())
+  name        String
+  birthday    DateTime?    @db.Date
+  telephone   String?
+  weekday     Weekday?
+  timetable   Timetable?
+  isActive    Boolean      @default(true)
+  studio      Studio       @relation(fields: [studioId], references: [id])
+  studioId    Int          @default(1)
+  user        User?        @relation(fields: [userId], references: [id])
+  userId      String?      @unique
+  invitations Invitation[]
+  months      Month[]
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+}
+
+model User {
+  id                 String              @id @default(cuid())
+  name               String?
+  email              String              @unique
+  emailVerified      DateTime?
+  image              String?
+  accounts           Account[]
+  sessions           Session[]
+  passwordCredential PasswordCredential?
+  memberships        Membership[]
+  student            Student?
+  invitationsSent    Invitation[]        @relation("InvitationSender")
+  authTokens         AuthToken[]
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  createdAt    DateTime @default(now())
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model VerificationToken {
+  identifier String
+  token      String
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+model PasswordCredential {
+  userId       String   @id
+  passwordHash String   @db.Text
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Studio {
+  id          Int          @id @default(autoincrement())
+  name        String
+  slug        String       @unique
+  students    Student[]
+  memberships Membership[]
+  invitations Invitation[]
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+}
+
+model Membership {
+  id        String         @id @default(cuid())
+  userId    String
+  studioId  Int
+  role      MembershipRole
+  user      User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  studio    Studio         @relation(fields: [studioId], references: [id], onDelete: Cascade)
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+
+  @@unique([userId, studioId])
+  @@index([studioId, role])
+}
+
+model Invitation {
+  id          String           @id @default(cuid())
+  email       String
+  tokenHash   String           @unique
+  role        MembershipRole
+  status      InvitationStatus @default(PENDING)
+  studioId    Int
+  studentId   Int?
+  invitedById String?
+  expiresAt   DateTime
+  acceptedAt  DateTime?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  studio      Studio           @relation(fields: [studioId], references: [id], onDelete: Cascade)
+  student     Student?         @relation(fields: [studentId], references: [id], onDelete: SetNull)
+  invitedBy   User?            @relation("InvitationSender", fields: [invitedById], references: [id], onDelete: SetNull)
+
+  @@index([email, status])
+  @@index([studentId])
+  @@index([studioId, status])
+}
+
+model AuthToken {
+  id         String        @id @default(cuid())
+  tokenHash  String        @unique
+  type       AuthTokenType
+  userId     String
+  expiresAt  DateTime
+  consumedAt DateTime?
+  createdAt  DateTime      @default(now())
+  user       User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, type])
+  @@index([expiresAt])
+}
+
+model AuthRateLimit {
+  key          String    @id
+  count        Int
+  windowStart  DateTime
+  blockedUntil DateTime?
+  updatedAt    DateTime  @updatedAt
+
+  @@index([blockedUntil])
 }
 
 model Month {
@@ -73,4 +212,22 @@ enum Weekday {
 enum PaymentStatus {
   PENDING
   PAID
+}
+
+enum MembershipRole {
+  OWNER
+  ADMIN
+  STUDENT
+}
+
+enum InvitationStatus {
+  PENDING
+  ACCEPTED
+  REVOKED
+  EXPIRED
+}
+
+enum AuthTokenType {
+  EMAIL_VERIFICATION
+  PASSWORD_RESET
 }

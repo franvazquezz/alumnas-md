@@ -3,9 +3,9 @@
 Aplicación administrativa del taller MD Cerámica. Permite gestionar alumnas/os,
 períodos mensuales, clases, asistencia y pagos.
 
-> El despliegue público está pausado hasta que la fase de autenticación proteja
-> los datos y las mutaciones. La aplicación no debe exponerse a Internet en su
-> estado actual.
+> El despliegue público está pausado hasta completar la autorización por rol y
+> taller de la fase 4. La fase 3 ya exige una sesión válida, pero todavía no
+> limita cada operación al rol y al taller correspondiente.
 
 ## Tecnologías
 
@@ -40,6 +40,8 @@ cp .env.example .env.local
 
 ```dotenv
 DATABASE_URL="postgresql://USUARIO:CONTRASEÑA@127.0.0.1:5432/mdceramica"
+AUTH_SECRET="una-cadena-aleatoria-de-al-menos-32-bytes"
+AUTH_URL="http://localhost:3000"
 ```
 
 Para una base vacía, aplicar el historial completo y generar Prisma Client:
@@ -51,6 +53,39 @@ pnpm dev
 ```
 
 La aplicación queda disponible en `http://localhost:3000`.
+
+## Autenticación
+
+La fase 3 usa NextAuth/Auth.js con correo y contraseña, Google OAuth, correo
+verificado, recuperación de contraseña y sesiones revocables. El registro no
+es público: toda cuenta nueva necesita una invitación vigente.
+
+Generar el secreto y configurar las credenciales de Google y el envío de correo
+según `.env.example`. El callback OAuth es
+`/api/auth/callback/google`. Los correos transaccionales usan Resend; durante el
+desarrollo, si Resend no está configurado, el enlace de un solo uso aparece
+sólo en la consola local.
+
+Después de aplicar la migración, crear una única cuenta propietaria inicial:
+
+```bash
+OWNER_EMAIL="administracion@example.com" \
+OWNER_PASSWORD="una-clave-de-al-menos-12-caracteres" \
+pnpm auth:bootstrap
+```
+
+Hasta que exista la interfaz administrativa de invitaciones, se puede crear una
+desde la terminal. Las cuentas `STUDENT` deben vincularse a una ficha existente:
+
+```bash
+INVITE_EMAIL="alumna@example.com" \
+INVITE_ROLE="STUDENT" \
+INVITE_STUDENT_ID="123" \
+pnpm auth:invite
+```
+
+El procedimiento completo de configuración y control está en
+`docs/FASE_3_RUNBOOK.md`.
 
 ## Migraciones
 

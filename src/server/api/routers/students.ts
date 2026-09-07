@@ -10,7 +10,7 @@ import {
   calendarDateToDatabase,
 } from "~/lib/domain/calendar-date";
 import { calculateFinancialSummary } from "~/lib/domain/money";
-import { createTRPCRouter, publicProcedure } from "~/server/api/trpc";
+import { createTRPCRouter, protectedProcedure } from "~/server/api/trpc";
 import {
   deleteClassInput,
   monthInput,
@@ -142,7 +142,7 @@ const studentRelations = {
 };
 
 export const studentsRouter = createTRPCRouter({
-  list: publicProcedure
+  list: protectedProcedure
     .input(studentSearchInput)
     .query(async ({ ctx, input }) => {
       const students = await ctx.db.student.findMany({
@@ -168,16 +168,18 @@ export const studentsRouter = createTRPCRouter({
       });
     }),
 
-  byId: publicProcedure.input(studentIdInput).query(async ({ ctx, input }) => {
-    const student = await ctx.db.student.findUnique({
-      where: { id: input.id },
-      include: studentRelations,
-    });
+  byId: protectedProcedure
+    .input(studentIdInput)
+    .query(async ({ ctx, input }) => {
+      const student = await ctx.db.student.findUnique({
+        where: { id: input.id },
+        include: studentRelations,
+      });
 
-    return student ? mapStudent(student) : null;
-  }),
+      return student ? mapStudent(student) : null;
+    }),
 
-  create: publicProcedure
+  create: protectedProcedure
     .input(studentCreateInput)
     .mutation(async ({ ctx, input }) => {
       const trimmedName = input.name.trim();
@@ -198,7 +200,7 @@ export const studentsRouter = createTRPCRouter({
       return mapStudent(student);
     }),
 
-  update: publicProcedure
+  update: protectedProcedure
     .input(studentUpdateInput)
     .mutation(async ({ ctx, input }) => {
       const { id, ...rest } = input;
@@ -227,7 +229,7 @@ export const studentsRouter = createTRPCRouter({
       return mapStudent(updated);
     }),
 
-  delete: publicProcedure
+  delete: protectedProcedure
     .input(studentIdInput)
     .mutation(async ({ ctx, input }) => {
       await ctx.db.$transaction([
@@ -238,7 +240,7 @@ export const studentsRouter = createTRPCRouter({
       return { success: true };
     }),
 
-  addMonth: publicProcedure
+  addMonth: protectedProcedure
     .input(monthInput)
     .mutation(async ({ ctx, input }) => {
       const studentExists = await ctx.db.student.findUnique({
@@ -256,7 +258,7 @@ export const studentsRouter = createTRPCRouter({
       });
     }),
 
-  addClass: publicProcedure
+  addClass: protectedProcedure
     .input(newClassInput)
     .mutation(async ({ ctx, input }) => {
       const month = await ctx.db.month.findFirst({
@@ -293,7 +295,7 @@ export const studentsRouter = createTRPCRouter({
       return student ? mapStudent(student) : null;
     }),
 
-  updateClass: publicProcedure
+  updateClass: protectedProcedure
     .input(updateClassInput)
     .mutation(async ({ ctx, input }) => {
       const updated = await ctx.db.class.update({
@@ -333,14 +335,14 @@ export const studentsRouter = createTRPCRouter({
       return mapClass(updated);
     }),
 
-  deleteClass: publicProcedure
+  deleteClass: protectedProcedure
     .input(deleteClassInput)
     .mutation(async ({ ctx, input }) => {
       await ctx.db.class.delete({ where: { id: input.classId } });
       return { success: true };
     }),
 
-  classes: publicProcedure.query(async ({ ctx }) => {
+  classes: protectedProcedure.query(async ({ ctx }) => {
     const classes = await ctx.db.class.findMany({
       include: { month: { include: { student: true } } },
       orderBy: [{ classDay: { sort: "desc", nulls: "last" } }, { id: "desc" }],

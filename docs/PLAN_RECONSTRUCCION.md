@@ -39,10 +39,10 @@ erDiagram
     MONTH ||--o{ CLASS : contains
 
     USER {
-      int id
+      string id
       string email
       string name
-      datetime emailVerifiedAt
+      datetime emailVerified
     }
     MEMBERSHIP {
       int userId
@@ -143,6 +143,13 @@ en la copia local y Neon durante una ventana controlada con respaldo.
 - Períodos y días no dependen de texto libre.
 
 ## 6. Fase 3 — Autenticación
+
+**Estado:** implementación completa el 7 de septiembre de 2026. NextAuth,
+credenciales, Google, invitaciones, verificación, recuperación, rate limiting y
+sesiones revocables fueron incorporados y validados sobre una base descartable.
+Quedan pendientes la configuración de secretos/proveedores y el despliegue
+controlado. La aplicación pública debe continuar pausada hasta completar la
+autorización por rol y taller de la fase 4.
 
 ### Requisitos
 

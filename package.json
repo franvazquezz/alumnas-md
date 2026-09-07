@@ -9,6 +9,8 @@
   },
   "scripts": {
     "build": "next build",
+    "auth:bootstrap": "tsx scripts/bootstrap-auth.ts",
+    "auth:invite": "tsx scripts/create-auth-invitation.ts",
     "check": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test",
     "db:generate": "prisma generate",
     "db:migrate:dev": "prisma migrate dev",
@@ -28,6 +30,7 @@
     "verify:css-theme": "node scripts/verify-css-theme.mjs"
   },
   "dependencies": {
+    "@auth/prisma-adapter": "^2.11.3",
     "@emotion/react": "^11.11.0",
     "@emotion/server": "^11.11.0",
     "@emotion/styled": "^11.11.0",
@@ -44,6 +47,7 @@
     "@trpc/server": "^11.0.0",
     "geist": "^1.3.1",
     "next": "15.4.10",
+    "next-auth": "5.0.0-beta.32",
     "pg": "^8.14.1",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
@@ -67,6 +71,7 @@
     "prettier-plugin-tailwindcss": "^0.6.5",
     "prisma": "^7.2.0",
     "tailwindcss": "^4.0.0",
+    "tsx": "^4.23.13",
     "typescript": "^5.5.3",
     "vitest": "^4.1.11"
   },
