@@ -1,6 +1,7 @@
 import { type MembershipRole, type Prisma } from "@prisma/client";
 
 import { db } from "~/server/db";
+import { writeAudit } from "~/server/audit";
 import { generateOpaqueToken, hashOpaqueToken, normalizeEmail } from "./tokens";
 
 type Transaction = Prisma.TransactionClient;
@@ -12,6 +13,7 @@ export async function attachInvitation(
     studioId: number;
     studentId: number | null;
     role: MembershipRole;
+    invitedById?: string | null;
   },
   userId: string,
 ) {
@@ -21,6 +23,11 @@ export async function attachInvitation(
       studioId: invitation.studioId,
       role: invitation.role,
     },
+  });
+
+  await tx.user.updateMany({
+    where: { id: userId, activeStudioId: null },
+    data: { activeStudioId: invitation.studioId },
   });
 
   if (invitation.studentId !== null) {
@@ -46,6 +53,15 @@ export async function attachInvitation(
   if (accepted.count !== 1) {
     throw new Error("La invitación ya no está disponible");
   }
+
+  await writeAudit(tx, {
+    studioId: invitation.studioId,
+    actorId: invitation.invitedById ?? userId,
+    action: "ASSIGN",
+    entityType: "MEMBERSHIP",
+    entityId: userId,
+    metadata: { role: invitation.role },
+  });
 }
 
 export async function acceptPendingInvitationByEmail(

@@ -42,6 +42,23 @@ export const ClassBadge = ({ cls }: { cls: Student["classes"][number] }) => (
         {cls.materialPaymentStatus === "PAID" ? "(pagado)" : ""}
       </span>
     </div>
+    {cls.charges.length > 0 ? (
+      <div className="border-plum/10 mt-2 space-y-1 border-t pt-2 text-[11px]">
+        {cls.charges.map((charge) => (
+          <div
+            key={charge.id}
+            className="flex items-center justify-between gap-2"
+          >
+            <span className="text-plum/80">
+              {charge.type === "OVEN" ? "Horno" : "Material"}:{" "}
+              {charge.description ?? "Sin detalle"}
+              {charge.needsReview ? " · revisar" : ""}
+            </span>
+            <strong className="text-ink">{formatMoney(charge.price)}</strong>
+          </div>
+        ))}
+      </div>
+    ) : null}
     <div className="text-plum/70 text-[11px]">
       Asistencia:{" "}
       <span className="text-ink font-semibold">

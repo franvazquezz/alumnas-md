@@ -8,6 +8,7 @@ declare module "next-auth" {
       id: string;
       role?: MembershipRole;
       studioId?: number;
+      isPlatformAdmin?: boolean;
     } & DefaultSession["user"];
   }
 }
@@ -17,6 +18,7 @@ declare module "next-auth/jwt" {
     sessionId?: string;
     role?: MembershipRole;
     studioId?: number;
+    isPlatformAdmin?: boolean;
     provider?: string;
   }
 }

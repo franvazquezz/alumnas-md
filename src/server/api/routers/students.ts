@@ -1,16 +1,17 @@
-import {
-  Prisma,
-  type PaymentStatus,
-  type Timetable,
-  type Weekday,
-} from "@prisma/client";
+import { Prisma, type PaymentStatus, type Weekday } from "@prisma/client";
+import { TRPCError } from "@trpc/server";
 
 import {
   calendarDateFromDatabase,
   calendarDateToDatabase,
 } from "~/lib/domain/calendar-date";
+import { canReadStudent } from "~/lib/auth/permissions";
 import { calculateFinancialSummary } from "~/lib/domain/money";
-import { createTRPCRouter, protectedProcedure } from "~/server/api/trpc";
+import {
+  adminProcedure,
+  createTRPCRouter,
+  studioProcedure,
+} from "~/server/api/trpc";
 import {
   deleteClassInput,
   monthInput,
@@ -23,21 +24,7 @@ import {
 } from "~/types/students";
 import type { StudentWithMonths } from "~/types/students";
 import { formatMonth } from "~/types/utils";
-
-const TIMETABLE_MAP: Record<string, "10:00" | "16:00" | "18:30"> = {
-  TEN: "10:00",
-  SIXTEEN: "16:00",
-  EIGHTEEN: "18:30",
-  "10:00": "10:00",
-  "16:00": "16:00",
-  "18:30": "18:30",
-};
-
-const TIMETABLE_REVERSE_MAP = {
-  "10:00": "TEN",
-  "16:00": "SIXTEEN",
-  "18:30": "EIGHTEEN",
-} as const;
+import { writeAudit } from "~/server/audit";
 
 const WEEKDAY_ORDER: Weekday[] = [
   "MONDAY",
@@ -49,22 +36,15 @@ const WEEKDAY_ORDER: Weekday[] = [
   "SUNDAY",
 ];
 
-const TIMETABLE_ORDER = ["10:00", "16:00", "18:30"];
-
-const timetableNameToValue = (name?: Timetable | null) =>
-  name ? (TIMETABLE_MAP[String(name)] ?? null) : null;
-
-const timetableValueToName = (value?: "10:00" | "16:00" | "18:30" | null) =>
-  value ? (TIMETABLE_REVERSE_MAP[value] as Timetable) : null;
-
 const getDayRank = (value?: Weekday | null) => {
   const index = value ? WEEKDAY_ORDER.indexOf(value) : -1;
   return index === -1 ? Number.POSITIVE_INFINITY : index;
 };
 
 const getTimetableRank = (value?: string | null) => {
-  const index = value ? TIMETABLE_ORDER.indexOf(value) : -1;
-  return index === -1 ? Number.POSITIVE_INFINITY : index;
+  if (!value) return Number.POSITIVE_INFINITY;
+  const [hours = 0, minutes = 0] = value.split(":").map(Number);
+  return hours * 60 + minutes;
 };
 
 const dateUpdate = (value: string | null | undefined) => {
@@ -76,13 +56,20 @@ const mapClass = <
   T extends StudentWithMonths["months"][number]["classes"][number],
 >(
   cls: T,
-) => ({
-  ...cls,
-  classDay: calendarDateFromDatabase(cls.classDay),
-  classPrice: cls.classPrice.toFixed(2),
-  ovenPrice: cls.ovenPrice.toFixed(2),
-  materialPrice: cls.materialPrice.toFixed(2),
-});
+) => {
+  const { charges, ...rest } = cls;
+  return {
+    ...rest,
+    classDay: calendarDateFromDatabase(cls.classDay),
+    classPrice: cls.classPrice.toFixed(2),
+    ovenPrice: cls.ovenPrice.toFixed(2),
+    materialPrice: cls.materialPrice.toFixed(2),
+    charges: charges.map((charge) => ({
+      ...charge,
+      price: charge.price.toFixed(2),
+    })),
+  };
+};
 
 const mapStudent = (student: StudentWithMonths) => {
   const months = student.months.map((month) => ({
@@ -108,6 +95,10 @@ const mapStudent = (student: StudentWithMonths) => {
       { amount: cls.classPrice, status: cls.classPaymentStatus },
       { amount: cls.ovenPrice, status: cls.ovenPaymentStatus },
       { amount: cls.materialPrice, status: cls.materialPaymentStatus },
+      ...cls.charges.map((charge) => ({
+        amount: charge.price,
+        status: charge.paymentStatus,
+      })),
     ]),
   );
 
@@ -117,7 +108,8 @@ const mapStudent = (student: StudentWithMonths) => {
     birthday: calendarDateFromDatabase(student.birthday),
     telephone: student.telephone,
     weekday: student.weekday,
-    timetable: timetableNameToValue(student.timetable),
+    shiftId: student.shiftId,
+    timetable: student.shift?.startTime ?? null,
     isActive: student.isActive,
     createdAt: student.createdAt,
     updatedAt: student.updatedAt,
@@ -128,6 +120,7 @@ const mapStudent = (student: StudentWithMonths) => {
 };
 
 const studentRelations = {
+  shift: true,
   months: {
     orderBy: [{ year: "desc" as const }, { month: "desc" as const }],
     include: {
@@ -136,24 +129,44 @@ const studentRelations = {
           { classDay: { sort: "asc" as const, nulls: "last" as const } },
           { id: "asc" as const },
         ],
+        include: {
+          charges: {
+            orderBy: [{ type: "asc" as const }, { id: "asc" as const }],
+          },
+        },
       },
     },
   },
 };
 
 export const studentsRouter = createTRPCRouter({
-  list: protectedProcedure
+  formOptions: adminProcedure.query(({ ctx }) =>
+    ctx.db.studioShift.findMany({
+      where: { studioId: ctx.authorization.studioId },
+      orderBy: [
+        { isActive: "desc" },
+        { sortOrder: "asc" },
+        { startTime: "asc" },
+      ],
+      select: { id: true, startTime: true, label: true, isActive: true },
+    }),
+  ),
+
+  list: adminProcedure
     .input(studentSearchInput)
     .query(async ({ ctx, input }) => {
       const students = await ctx.db.student.findMany({
-        where: input?.search
-          ? {
-              name: {
-                contains: input.search,
-                mode: "insensitive",
-              },
-            }
-          : undefined,
+        where: {
+          studioId: ctx.authorization.studioId,
+          ...(input?.search
+            ? {
+                name: {
+                  contains: input.search,
+                  mode: "insensitive" as const,
+                },
+              }
+            : {}),
+        },
         include: studentRelations,
       });
 
@@ -168,86 +181,156 @@ export const studentsRouter = createTRPCRouter({
       });
     }),
 
-  byId: protectedProcedure
-    .input(studentIdInput)
-    .query(async ({ ctx, input }) => {
-      const student = await ctx.db.student.findUnique({
-        where: { id: input.id },
-        include: studentRelations,
-      });
+  byId: studioProcedure.input(studentIdInput).query(async ({ ctx, input }) => {
+    const student = await ctx.db.student.findFirst({
+      where: { id: input.id, studioId: ctx.authorization.studioId },
+      include: studentRelations,
+    });
 
-      return student ? mapStudent(student) : null;
-    }),
+    if (!student) return null;
+    if (!canReadStudent(ctx.authorization, student)) {
+      throw new TRPCError({ code: "NOT_FOUND" });
+    }
 
-  create: protectedProcedure
+    return mapStudent(student);
+  }),
+
+  mine: studioProcedure.query(async ({ ctx }) => {
+    const student = await ctx.db.student.findFirst({
+      where: {
+        studioId: ctx.authorization.studioId,
+        userId: ctx.authorization.userId,
+      },
+      include: studentRelations,
+    });
+
+    return student ? mapStudent(student) : null;
+  }),
+
+  create: adminProcedure
     .input(studentCreateInput)
     .mutation(async ({ ctx, input }) => {
       const trimmedName = input.name.trim();
       const name = trimmedName.charAt(0).toUpperCase() + trimmedName.slice(1);
-      const student = await ctx.db.student.create({
-        data: {
-          name,
-          birthday: input.birthday
-            ? calendarDateToDatabase(input.birthday)
-            : null,
-          telephone: input.telephone?.trim() ?? null,
-          weekday: (input.weekday as Weekday | null | undefined) ?? null,
-          timetable: timetableValueToName(input.timetable),
-          isActive: input.isActive ?? true,
-        },
-        include: studentRelations,
+      if (input.shiftId) {
+        const shift = await ctx.db.studioShift.findFirst({
+          where: { id: input.shiftId, studioId: ctx.authorization.studioId },
+        });
+        if (!shift) throw new TRPCError({ code: "BAD_REQUEST" });
+      }
+      return ctx.db.$transaction(async (tx) => {
+        const student = await tx.student.create({
+          data: {
+            name,
+            birthday: input.birthday
+              ? calendarDateToDatabase(input.birthday)
+              : null,
+            telephone: input.telephone?.trim() ?? null,
+            weekday: (input.weekday as Weekday | null | undefined) ?? null,
+            shiftId: input.shiftId ?? null,
+            isActive: input.isActive ?? true,
+            studioId: ctx.authorization.studioId,
+          },
+          include: studentRelations,
+        });
+        await writeAudit(tx, {
+          studioId: ctx.authorization.studioId,
+          actorId: ctx.authorization.userId,
+          action: "CREATE",
+          entityType: "STUDENT",
+          entityId: student.id,
+          metadata: { name: student.name },
+        });
+        return mapStudent(student);
       });
-      return mapStudent(student);
     }),
 
-  update: protectedProcedure
+  update: adminProcedure
     .input(studentUpdateInput)
     .mutation(async ({ ctx, input }) => {
       const { id, ...rest } = input;
-      const trimmedName = rest.name?.trim();
-      const updated = await ctx.db.student.update({
-        where: { id },
-        data: {
-          name: trimmedName
-            ? trimmedName.charAt(0).toUpperCase() + trimmedName.slice(1)
-            : undefined,
-          birthday: dateUpdate(rest.birthday),
-          telephone:
-            rest.telephone === undefined ? undefined : rest.telephone || null,
-          weekday:
-            rest.weekday === undefined
-              ? undefined
-              : (rest.weekday as Weekday | null),
-          timetable:
-            rest.timetable === undefined
-              ? undefined
-              : timetableValueToName(rest.timetable),
-          isActive: rest.isActive,
-        },
-        include: studentRelations,
+      const existing = await ctx.db.student.findFirst({
+        where: { id, studioId: ctx.authorization.studioId },
+        select: { id: true },
       });
-      return mapStudent(updated);
+      if (!existing) throw new TRPCError({ code: "NOT_FOUND" });
+
+      if (rest.shiftId) {
+        const shift = await ctx.db.studioShift.findFirst({
+          where: { id: rest.shiftId, studioId: ctx.authorization.studioId },
+        });
+        if (!shift) throw new TRPCError({ code: "BAD_REQUEST" });
+      }
+
+      const trimmedName = rest.name?.trim();
+      return ctx.db.$transaction(async (tx) => {
+        const updated = await tx.student.update({
+          where: { id },
+          data: {
+            name: trimmedName
+              ? trimmedName.charAt(0).toUpperCase() + trimmedName.slice(1)
+              : undefined,
+            birthday: dateUpdate(rest.birthday),
+            telephone:
+              rest.telephone === undefined ? undefined : rest.telephone || null,
+            weekday:
+              rest.weekday === undefined
+                ? undefined
+                : (rest.weekday as Weekday | null),
+            shiftId: rest.shiftId,
+            isActive: rest.isActive,
+          },
+          include: studentRelations,
+        });
+        await writeAudit(tx, {
+          studioId: ctx.authorization.studioId,
+          actorId: ctx.authorization.userId,
+          action: "UPDATE",
+          entityType: "STUDENT",
+          entityId: id,
+          metadata: { name: updated.name },
+        });
+        return mapStudent(updated);
+      });
     }),
 
-  delete: protectedProcedure
+  delete: adminProcedure
     .input(studentIdInput)
     .mutation(async ({ ctx, input }) => {
-      await ctx.db.$transaction([
-        ctx.db.class.deleteMany({ where: { month: { studentId: input.id } } }),
-        ctx.db.month.deleteMany({ where: { studentId: input.id } }),
-        ctx.db.student.delete({ where: { id: input.id } }),
-      ]);
+      const existing = await ctx.db.student.findFirst({
+        where: { id: input.id, studioId: ctx.authorization.studioId },
+        select: { id: true },
+      });
+      if (!existing) throw new TRPCError({ code: "NOT_FOUND" });
+
+      await ctx.db.$transaction(async (tx) => {
+        await tx.class.deleteMany({
+          where: { month: { studentId: input.id } },
+        });
+        await tx.month.deleteMany({ where: { studentId: input.id } });
+        await tx.student.delete({ where: { id: input.id } });
+        await writeAudit(tx, {
+          studioId: ctx.authorization.studioId,
+          actorId: ctx.authorization.userId,
+          action: "DELETE",
+          entityType: "STUDENT",
+          entityId: input.id,
+        });
+      });
       return { success: true };
     }),
 
-  addMonth: protectedProcedure
+  addMonth: adminProcedure
     .input(monthInput)
     .mutation(async ({ ctx, input }) => {
-      const studentExists = await ctx.db.student.findUnique({
-        where: { id: input.studentId },
+      const studentExists = await ctx.db.student.findFirst({
+        where: {
+          id: input.studentId,
+          studioId: ctx.authorization.studioId,
+        },
         select: { id: true },
       });
-      if (!studentExists) throw new Error("Student not found");
+      if (!studentExists) throw new TRPCError({ code: "NOT_FOUND" });
 
       return ctx.db.month.create({
         data: {
@@ -258,93 +341,152 @@ export const studentsRouter = createTRPCRouter({
       });
     }),
 
-  addClass: protectedProcedure
+  addClass: adminProcedure
     .input(newClassInput)
     .mutation(async ({ ctx, input }) => {
       const month = await ctx.db.month.findFirst({
-        where: { id: input.monthId, studentId: input.studentId },
+        where: {
+          id: input.monthId,
+          studentId: input.studentId,
+          student: { studioId: ctx.authorization.studioId },
+        },
         select: { id: true },
       });
-      if (!month) throw new Error("Month not found for student");
+      if (!month) throw new TRPCError({ code: "NOT_FOUND" });
 
-      await ctx.db.class.create({
-        data: {
-          className: input.className.trim(),
-          assistance: input.assistance ?? false,
-          classPrice: new Prisma.Decimal(input.classPrice),
-          classDay: dateUpdate(input.classDay),
-          classPaymentStatus: (input.classPaymentStatus ??
-            "PENDING") as PaymentStatus,
-          ovenName: input.ovenName?.trim() ?? null,
-          ovenPrice: new Prisma.Decimal(input.ovenPrice ?? "0.00"),
-          ovenPaymentStatus: (input.ovenPaymentStatus ??
-            "PENDING") as PaymentStatus,
-          materialName: input.materialName?.trim() ?? null,
-          materialPrice: new Prisma.Decimal(input.materialPrice ?? "0.00"),
-          materialPaymentStatus: (input.materialPaymentStatus ??
-            "PENDING") as PaymentStatus,
-          monthId: input.monthId,
-        },
+      return ctx.db.$transaction(async (tx) => {
+        const created = await tx.class.create({
+          data: {
+            className: input.className.trim(),
+            assistance: input.assistance ?? false,
+            classPrice: new Prisma.Decimal(input.classPrice),
+            classDay: dateUpdate(input.classDay),
+            classPaymentStatus: (input.classPaymentStatus ??
+              "PENDING") as PaymentStatus,
+            ovenName: input.ovenName?.trim() ?? null,
+            ovenPrice: new Prisma.Decimal(input.ovenPrice ?? "0.00"),
+            ovenPaymentStatus: (input.ovenPaymentStatus ??
+              "PENDING") as PaymentStatus,
+            materialName: input.materialName?.trim() ?? null,
+            materialPrice: new Prisma.Decimal(input.materialPrice ?? "0.00"),
+            materialPaymentStatus: (input.materialPaymentStatus ??
+              "PENDING") as PaymentStatus,
+            monthId: input.monthId,
+          },
+        });
+        await writeAudit(tx, {
+          studioId: ctx.authorization.studioId,
+          actorId: ctx.authorization.userId,
+          action: "CREATE",
+          entityType: "CLASS",
+          entityId: created.id,
+          metadata: {
+            className: created.className,
+            studentId: input.studentId,
+          },
+        });
+        const student = await tx.student.findUnique({
+          where: { id: input.studentId },
+          include: studentRelations,
+        });
+        return student ? mapStudent(student) : null;
       });
-
-      const student = await ctx.db.student.findUnique({
-        where: { id: input.studentId },
-        include: studentRelations,
-      });
-
-      return student ? mapStudent(student) : null;
     }),
 
-  updateClass: protectedProcedure
+  updateClass: adminProcedure
     .input(updateClassInput)
     .mutation(async ({ ctx, input }) => {
-      const updated = await ctx.db.class.update({
-        where: { id: input.classId },
-        data: {
-          className: input.className.trim(),
-          assistance: input.assistance,
-          classPrice: new Prisma.Decimal(input.classPrice),
-          classDay: dateUpdate(input.classDay),
-          classPaymentStatus: input.classPaymentStatus as
-            | PaymentStatus
-            | undefined,
-          ovenName:
-            input.ovenName === undefined
-              ? undefined
-              : input.ovenName.trim() || null,
-          ovenPrice:
-            input.ovenPrice === undefined
-              ? undefined
-              : new Prisma.Decimal(input.ovenPrice),
-          ovenPaymentStatus: input.ovenPaymentStatus as
-            | PaymentStatus
-            | undefined,
-          materialName:
-            input.materialName === undefined
-              ? undefined
-              : input.materialName.trim() || null,
-          materialPrice:
-            input.materialPrice === undefined
-              ? undefined
-              : new Prisma.Decimal(input.materialPrice),
-          materialPaymentStatus: input.materialPaymentStatus as
-            | PaymentStatus
-            | undefined,
+      const existing = await ctx.db.class.findFirst({
+        where: {
+          id: input.classId,
+          month: { student: { studioId: ctx.authorization.studioId } },
         },
+        select: { id: true },
       });
-      return mapClass(updated);
+      if (!existing) throw new TRPCError({ code: "NOT_FOUND" });
+
+      return ctx.db.$transaction(async (tx) => {
+        const updated = await tx.class.update({
+          where: { id: input.classId },
+          data: {
+            className: input.className.trim(),
+            assistance: input.assistance,
+            classPrice: new Prisma.Decimal(input.classPrice),
+            classDay: dateUpdate(input.classDay),
+            classPaymentStatus: input.classPaymentStatus as
+              | PaymentStatus
+              | undefined,
+            ovenName:
+              input.ovenName === undefined
+                ? undefined
+                : input.ovenName.trim() || null,
+            ovenPrice:
+              input.ovenPrice === undefined
+                ? undefined
+                : new Prisma.Decimal(input.ovenPrice),
+            ovenPaymentStatus: input.ovenPaymentStatus as
+              | PaymentStatus
+              | undefined,
+            materialName:
+              input.materialName === undefined
+                ? undefined
+                : input.materialName.trim() || null,
+            materialPrice:
+              input.materialPrice === undefined
+                ? undefined
+                : new Prisma.Decimal(input.materialPrice),
+            materialPaymentStatus: input.materialPaymentStatus as
+              | PaymentStatus
+              | undefined,
+          },
+          include: { charges: true },
+        });
+        await writeAudit(tx, {
+          studioId: ctx.authorization.studioId,
+          actorId: ctx.authorization.userId,
+          action: "UPDATE",
+          entityType: "CLASS",
+          entityId: updated.id,
+          metadata: { className: updated.className },
+        });
+        return mapClass(updated);
+      });
     }),
 
-  deleteClass: protectedProcedure
+  deleteClass: adminProcedure
     .input(deleteClassInput)
     .mutation(async ({ ctx, input }) => {
-      await ctx.db.class.delete({ where: { id: input.classId } });
+      const existing = await ctx.db.class.findFirst({
+        where: {
+          id: input.classId,
+          month: { student: { studioId: ctx.authorization.studioId } },
+        },
+        select: { id: true, className: true },
+      });
+      if (!existing) throw new TRPCError({ code: "NOT_FOUND" });
+      await ctx.db.$transaction(async (tx) => {
+        await tx.class.delete({ where: { id: input.classId } });
+        await writeAudit(tx, {
+          studioId: ctx.authorization.studioId,
+          actorId: ctx.authorization.userId,
+          action: "DELETE",
+          entityType: "CLASS",
+          entityId: input.classId,
+          metadata: { className: existing.className },
+        });
+      });
       return { success: true };
     }),
 
-  classes: protectedProcedure.query(async ({ ctx }) => {
+  classes: adminProcedure.query(async ({ ctx }) => {
     const classes = await ctx.db.class.findMany({
-      include: { month: { include: { student: true } } },
+      where: {
+        month: { student: { studioId: ctx.authorization.studioId } },
+      },
+      include: {
+        charges: true,
+        month: { include: { student: true } },
+      },
       orderBy: [{ classDay: { sort: "desc", nulls: "last" } }, { id: "desc" }],
     });
 

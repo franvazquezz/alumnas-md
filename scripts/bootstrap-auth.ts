@@ -32,6 +32,8 @@ await db.user.create({
     email: normalizeEmail(email),
     emailVerified: new Date(),
     name,
+    isPlatformAdmin: true,
+    activeStudioId: studio.id,
     passwordCredential: { create: { passwordHash } },
     memberships: {
       create: { studioId: studio.id, role: "OWNER" },

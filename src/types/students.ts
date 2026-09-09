@@ -50,7 +50,7 @@ export const studentCreateInput = z.object({
   birthday: optionalCalendarDateInput,
   telephone: z.string().optional(),
   weekday: weekdayInput.nullable().optional(),
-  timetable: z.enum(["10:00", "16:00", "18:30"]).optional(),
+  shiftId: numericId.nullable().optional(),
   isActive: z.boolean().optional(),
 });
 
@@ -60,7 +60,7 @@ export const studentUpdateInput = z.object({
   birthday: optionalCalendarDateInput,
   telephone: z.string().optional(),
   weekday: weekdayInput.nullable().optional(),
-  timetable: z.enum(["10:00", "16:00", "18:30"]).optional(),
+  shiftId: numericId.nullable().optional(),
   isActive: z.boolean().optional(),
 });
 
@@ -100,10 +100,12 @@ export type MonthWithClasses = Prisma.MonthGetPayload<{
 }>;
 
 export type StudentWithMonths = Prisma.StudentGetPayload<{
-  include: { months: { include: { classes: true } } };
+  include: {
+    shift: true;
+    months: { include: { classes: { include: { charges: true } } } };
+  };
 }>;
 
-export type TimetableOption = "10:00" | "16:00" | "18:30" | undefined;
 export type WeekdayOption = z.infer<typeof weekdayInput>;
 
 export type StudentFormState = {
@@ -111,7 +113,7 @@ export type StudentFormState = {
   birthday: string;
   telephone: string;
   weekday: WeekdayOption | null;
-  timetable: TimetableOption;
+  shiftId: number | null;
   isActive: boolean;
 };
 

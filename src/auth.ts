@@ -24,6 +24,29 @@ const credentialsSchema = z.object({
   password: z.string().min(1).max(128),
 });
 
+const sessionAuthorization = async (userId: string) => {
+  const user = await db.user.findUnique({
+    where: { id: userId },
+    select: {
+      activeStudioId: true,
+      isPlatformAdmin: true,
+      memberships: {
+        where: { studio: { isActive: true } },
+        orderBy: { createdAt: "asc" },
+        select: { role: true, studioId: true },
+      },
+    },
+  });
+  if (!user) return null;
+
+  const membership =
+    user.memberships.find(
+      (candidate) => candidate.studioId === user.activeStudioId,
+    ) ?? user.memberships[0];
+
+  return { isPlatformAdmin: user.isPlatformAdmin, membership };
+};
+
 export const { handlers, auth, signIn, signOut } = NextAuth({
   adapter: PrismaAdapter(db),
   secret: process.env.AUTH_SECRET,
@@ -85,7 +108,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           !user ||
           !passwordMatches ||
           !user.emailVerified ||
-          user.memberships.length === 0
+          (user.memberships.length === 0 && !user.isPlatformAdmin)
         ) {
           return null;
         }
@@ -113,7 +136,10 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       const [existingUser, invitation] = await Promise.all([
         db.user.findUnique({
           where: { email },
-          select: { memberships: { select: { id: true }, take: 1 } },
+          select: {
+            isPlatformAdmin: true,
+            memberships: { select: { id: true }, take: 1 },
+          },
         }),
         db.invitation.findFirst({
           where: {
@@ -126,16 +152,18 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       ]);
 
       return (
-        Boolean(existingUser?.memberships.length ?? 0) || invitation !== null
+        Boolean(existingUser?.memberships.length ?? 0) ||
+        existingUser?.isPlatformAdmin === true ||
+        invitation !== null
       );
     },
     async jwt({ token, user, trigger, account }) {
       if ((trigger === "signIn" || trigger === "signUp") && user.id) {
-        const membership = await db.membership.findFirst({
-          where: { userId: user.id },
-          orderBy: { createdAt: "asc" },
-        });
-        if (!membership) return null;
+        const authorization = await sessionAuthorization(user.id);
+        if (!authorization) return null;
+        if (!authorization.membership && !authorization.isPlatformAdmin) {
+          return null;
+        }
 
         const sessionToken = randomBytes(32).toString("base64url");
         await db.session.create({
@@ -148,8 +176,9 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 
         token.sub = user.id;
         token.sessionId = sessionToken;
-        token.role = membership.role;
-        token.studioId = membership.studioId;
+        token.role = authorization.membership?.role;
+        token.studioId = authorization.membership?.studioId;
+        token.isPlatformAdmin = authorization.isPlatformAdmin;
         token.provider = account?.provider;
         return token;
       }
@@ -158,15 +187,18 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 
       const session = await db.session.findUnique({
         where: { sessionToken: token.sessionId },
-        include: {
-          user: { include: { memberships: { take: 1 } } },
-        },
+        select: { id: true, expires: true, userId: true },
       });
+
+      const authorization = session
+        ? await sessionAuthorization(session.userId)
+        : null;
 
       if (
         !session ||
         session.expires <= new Date() ||
-        session.user.memberships.length === 0
+        !authorization ||
+        (!authorization.membership && !authorization.isPlatformAdmin)
       ) {
         if (session) {
           await db.session.delete({ where: { id: session.id } });
@@ -174,9 +206,9 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         return null;
       }
 
-      const membership = session.user.memberships[0]!;
-      token.role = membership.role;
-      token.studioId = membership.studioId;
+      token.role = authorization.membership?.role;
+      token.studioId = authorization.membership?.studioId;
+      token.isPlatformAdmin = authorization.isPlatformAdmin;
       return token;
     },
     session({ session, token }) {
@@ -185,6 +217,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         session.user.role = token.role as MembershipRole | undefined;
         session.user.studioId =
           typeof token.studioId === "number" ? token.studioId : undefined;
+        session.user.isPlatformAdmin = token.isPlatformAdmin === true;
       }
       session.sessionId =
         typeof token.sessionId === "string" ? token.sessionId : undefined;

@@ -25,6 +25,9 @@ export const StudentPersonalDetail = ({
   const [showEditDetails, setShowEditDetails] = useState(false);
 
   const utils = api.useUtils();
+  const { data: shifts } = api.students.formOptions.useQuery(undefined, {
+    refetchOnWindowFocus: false,
+  });
   const updateStudent = api.students.update.useMutation({
     onSuccess: async () => {
       await utils.students.byId.invalidate({ id: studentId });
@@ -61,7 +64,7 @@ export const StudentPersonalDetail = ({
       birthday: form.birthday || null,
       telephone: form.telephone ?? undefined,
       weekday: form.weekday,
-      timetable: form.timetable ?? undefined,
+      shiftId: form.shiftId,
       isActive: form.isActive,
     });
   };
@@ -147,32 +150,27 @@ export const StudentPersonalDetail = ({
             ))}
           </select>
           <select
-            value={form.timetable}
+            value={form.shiftId ?? ""}
             onChange={(e) =>
               setForm({
                 ...form,
-                timetable:
-                  e.target.value === "10:00"
-                    ? "10:00"
-                    : e.target.value === "16:00"
-                      ? "16:00"
-                      : e.target.value === "18:30"
-                        ? "18:30"
-                        : undefined,
+                shiftId: e.target.value ? Number(e.target.value) : null,
               })
             }
             className="border-plum/20 text-ink ring-primary/20 rounded-xl border bg-white px-4 py-2 text-sm transition outline-none focus:ring-2"
           >
             <option value="">Seleccionar horario</option>
-            <option key={1} value={"10:00"}>
-              10:00
-            </option>
-            <option key={2} value={"16:00"}>
-              16:00
-            </option>
-            <option key={3} value={"18:30"}>
-              18:30
-            </option>
+            {shifts?.map((shift) => (
+              <option
+                key={shift.id}
+                value={shift.id}
+                disabled={!shift.isActive && shift.id !== form.shiftId}
+              >
+                {shift.startTime}
+                {shift.label ? ` · ${shift.label}` : ""}
+                {!shift.isActive ? " · inactivo" : ""}
+              </option>
+            ))}
           </select>
           <label className="text-plum flex items-center gap-2 text-sm">
             <input

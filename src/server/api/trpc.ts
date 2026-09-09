@@ -12,6 +12,7 @@ import { ZodError } from "zod";
 
 import { db } from "~/server/db";
 import { auth } from "~/auth";
+import { canManageStudio } from "~/lib/auth/permissions";
 
 /**
  * 1. CONTEXT
@@ -122,3 +123,47 @@ export const protectedProcedure = t.procedure
       },
     });
   });
+
+export const platformProcedure = protectedProcedure.use(({ ctx, next }) => {
+  if (!ctx.session.user.isPlatformAdmin) {
+    throw new TRPCError({ code: "FORBIDDEN" });
+  }
+
+  return next({ ctx });
+});
+
+export const studioProcedure = protectedProcedure.use(({ ctx, next }) => {
+  const role = ctx.session.user.role;
+  const studioId = ctx.session.user.studioId;
+
+  if (!role || typeof studioId !== "number") {
+    throw new TRPCError({ code: "FORBIDDEN" });
+  }
+
+  return next({
+    ctx: {
+      ...ctx,
+      authorization: {
+        userId: ctx.session.user.id,
+        role,
+        studioId,
+      },
+    },
+  });
+});
+
+export const adminProcedure = studioProcedure.use(({ ctx, next }) => {
+  if (!canManageStudio(ctx.authorization.role)) {
+    throw new TRPCError({ code: "FORBIDDEN" });
+  }
+
+  return next({ ctx });
+});
+
+export const ownerProcedure = studioProcedure.use(({ ctx, next }) => {
+  if (ctx.authorization.role !== "OWNER") {
+    throw new TRPCError({ code: "FORBIDDEN" });
+  }
+
+  return next({ ctx });
+});

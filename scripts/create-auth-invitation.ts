@@ -22,7 +22,8 @@ if (role === "STUDENT" && studentId === undefined) {
   throw new Error("Las invitaciones STUDENT requieren INVITE_STUDENT_ID.");
 }
 
-const studio = await db.studio.findUnique({ where: { slug: "md-ceramica" } });
+const studioSlug = process.env.STUDIO_SLUG ?? "md-ceramica";
+const studio = await db.studio.findUnique({ where: { slug: studioSlug } });
 if (!studio) throw new Error("Aplica primero las migraciones.");
 
 if (studentId !== undefined) {
@@ -48,8 +49,8 @@ const inviteUrl = new URL(`/invite/${token}`, baseUrl).toString();
 
 await sendAuthEmail({
   to: normalizeEmail(email),
-  subject: "Invitación a MD Cerámica",
-  heading: "Te invitaron a MD Cerámica",
+  subject: `Invitación a ${studio.name}`,
+  heading: `Te invitaron a ${studio.name}`,
   message: "Crea tu cuenta desde este enlace. La invitación vence en 48 horas.",
   actionLabel: "Crear cuenta",
   actionUrl: inviteUrl,

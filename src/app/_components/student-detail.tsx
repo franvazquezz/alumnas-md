@@ -56,7 +56,7 @@ export function StudentDetail() {
     birthday: "",
     telephone: "",
     weekday: null,
-    timetable: undefined,
+    shiftId: null,
     isActive: true,
   });
 
@@ -95,14 +95,7 @@ export function StudentDetail() {
       birthday: data.birthday ?? "",
       telephone: data.telephone ?? "",
       weekday: data.weekday,
-      timetable:
-        data.timetable === "10:00"
-          ? "10:00"
-          : data.timetable === "16:00"
-            ? "16:00"
-            : data.timetable === "18:30"
-              ? "18:30"
-              : undefined,
+      shiftId: data.shiftId,
       isActive: data.isActive,
     });
     const drafts: Record<number, ClassFormState> = {};
@@ -886,6 +879,35 @@ export function StudentDetail() {
                         {cls.materialPaymentStatus === "PAID" ? "Sí" : "No"}
                       </p>
                     </div>
+                    {cls.charges.length > 0 ? (
+                      <div className="border-plum/10 mt-4 border-t pt-4">
+                        <p className="text-plum mb-2 text-xs font-bold uppercase">
+                          Cargos múltiples migrados
+                        </p>
+                        <div className="space-y-2">
+                          {cls.charges.map((charge) => (
+                            <div
+                              key={charge.id}
+                              className="bg-sand/70 flex flex-wrap items-center justify-between gap-2 rounded-xl px-3 py-2 text-sm"
+                            >
+                              <span className="text-plum/80">
+                                {charge.type === "OVEN" ? "Horno" : "Material"}{" "}
+                                · {charge.description ?? "Sin detalle"}
+                              </span>
+                              <span className="text-plum font-semibold">
+                                {formatMoney(charge.price)} ·{" "}
+                                {charge.paymentStatus === "PAID"
+                                  ? "Pagado"
+                                  : "Pendiente"}
+                                {charge.needsReview
+                                  ? " · Revisar asociación"
+                                  : ""}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ) : null}
                   </div>
                 ))}
               </div>

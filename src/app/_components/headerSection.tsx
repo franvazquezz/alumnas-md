@@ -2,6 +2,8 @@ import React, { useMemo } from "react";
 import { StatCard } from "./statCard";
 import { type Student } from "~/types/utils";
 import { AccountActions } from "./account-actions";
+import { StudioSwitcher } from "./studio-switcher";
+import { api } from "~/trpc/react";
 
 export const HeaderSection = ({
   students,
@@ -12,6 +14,10 @@ export const HeaderSection = ({
   search: string;
   setSearch: (value: string) => void;
 }) => {
+  const { data: navigation } = api.administration.navigation.useQuery();
+  const activeStudio = navigation?.studios.find(
+    (studio) => studio.id === navigation.activeStudioId,
+  );
   const stats = useMemo(() => {
     const totalStudents =
       students?.filter((student) => student.isActive).length ?? 0;
@@ -27,9 +33,12 @@ export const HeaderSection = ({
     <section className="from-primary via-plum to-secondary overflow-hidden rounded-3xl bg-linear-to-r p-px shadow-xl">
       <div className="bg-sand/95 flex flex-col gap-6 rounded-[28px] px-8 py-10">
         <div className="flex items-center justify-between gap-4">
-          <p className="text-plum/70 text-sm tracking-[0.12em] uppercase">
-            MD Cerámica
-          </p>
+          <div className="flex flex-wrap items-center gap-4">
+            <p className="text-plum/70 text-sm tracking-[0.12em] uppercase">
+              {activeStudio?.name ?? "Gestión de talleres"}
+            </p>
+            <StudioSwitcher />
+          </div>
           <AccountActions />
         </div>
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">

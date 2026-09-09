@@ -15,16 +15,20 @@ model Student {
   birthday    DateTime?    @db.Date
   telephone   String?
   weekday     Weekday?
-  timetable   Timetable?
+  shift       StudioShift? @relation(fields: [shiftId], references: [id], onDelete: SetNull)
+  shiftId     Int?
   isActive    Boolean      @default(true)
   studio      Studio       @relation(fields: [studioId], references: [id])
   studioId    Int          @default(1)
   user        User?        @relation(fields: [userId], references: [id])
-  userId      String?      @unique
+  userId      String?
   invitations Invitation[]
   months      Month[]
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
+
+  @@unique([studioId, userId])
+  @@index([shiftId])
 }
 
 model User {
@@ -33,13 +37,17 @@ model User {
   email              String              @unique
   emailVerified      DateTime?
   image              String?
+  isPlatformAdmin    Boolean             @default(false)
+  activeStudio       Studio?             @relation("ActiveStudio", fields: [activeStudioId], references: [id], onDelete: SetNull)
+  activeStudioId     Int?
   accounts           Account[]
   sessions           Session[]
   passwordCredential PasswordCredential?
   memberships        Membership[]
-  student            Student?
+  students           Student[]
   invitationsSent    Invitation[]        @relation("InvitationSender")
   authTokens         AuthToken[]
+  auditEvents        AuditLog[]          @relation("AuditActor")
   createdAt          DateTime            @default(now())
   updatedAt          DateTime            @updatedAt
 }
@@ -91,14 +99,53 @@ model PasswordCredential {
 }
 
 model Studio {
-  id          Int          @id @default(autoincrement())
+  id          Int           @id @default(autoincrement())
   name        String
-  slug        String       @unique
+  slug        String        @unique
+  description String?
+  address     String?
+  telephone   String?
+  isActive    Boolean       @default(true)
   students    Student[]
   memberships Membership[]
   invitations Invitation[]
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
+  activeUsers User[]        @relation("ActiveStudio")
+  shifts      StudioShift[]
+  auditLogs   AuditLog[]
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+}
+
+model StudioShift {
+  id        Int       @id @default(autoincrement())
+  studioId  Int
+  startTime String    @db.VarChar(5)
+  label     String?
+  isActive  Boolean   @default(true)
+  sortOrder Int       @default(0)
+  studio    Studio    @relation(fields: [studioId], references: [id], onDelete: Cascade)
+  students  Student[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@unique([studioId, startTime])
+  @@index([studioId, isActive, sortOrder])
+}
+
+model AuditLog {
+  id         String      @id @default(cuid())
+  studioId   Int
+  actorId    String?
+  action     AuditAction
+  entityType String
+  entityId   String?
+  metadata   Json?
+  studio     Studio      @relation(fields: [studioId], references: [id], onDelete: Cascade)
+  actor      User?       @relation("AuditActor", fields: [actorId], references: [id], onDelete: SetNull)
+  createdAt  DateTime    @default(now())
+
+  @@index([studioId, createdAt])
+  @@index([actorId, createdAt])
 }
 
 model Membership {
@@ -189,14 +236,26 @@ model Class {
   materialPaymentStatus PaymentStatus @default(PENDING)
   month                 Month         @relation(fields: [monthId], references: [id])
   monthId               Int
+  charges               ClassCharge[]
   createdAt             DateTime      @default(now())
   updatedAt             DateTime      @updatedAt
 }
 
-enum Timetable {
-  TEN      @map("10:00")
-  SIXTEEN  @map("16:00")
-  EIGHTEEN @map("18:30")
+model ClassCharge {
+  id            Int           @id @default(autoincrement())
+  type          ChargeType
+  description   String?
+  price         Decimal       @db.Decimal(12, 2)
+  paymentStatus PaymentStatus @default(PENDING)
+  needsReview   Boolean       @default(false)
+  legacyDetail  String?
+  class         Class         @relation(fields: [classId], references: [id], onDelete: Cascade)
+  classId       Int
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  @@index([classId, type])
+  @@index([needsReview])
 }
 
 enum Weekday {
@@ -209,9 +268,23 @@ enum Weekday {
   SUNDAY
 }
 
+enum AuditAction {
+  CREATE
+  UPDATE
+  DELETE
+  ASSIGN
+  UNASSIGN
+  SWITCH
+}
+
 enum PaymentStatus {
   PENDING
   PAID
+}
+
+enum ChargeType {
+  OVEN
+  MATERIAL
 }
 
 enum MembershipRole {

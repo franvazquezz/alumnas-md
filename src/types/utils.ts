@@ -34,7 +34,7 @@ export const emptyStudent: StudentFormState = {
   birthday: "",
   telephone: "",
   weekday: null,
-  timetable: "10:00",
+  shiftId: null,
   isActive: true,
 };
 

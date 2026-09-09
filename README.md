@@ -1,7 +1,8 @@
-# MD Cerámica
+# Gestión de talleres
 
-Aplicación administrativa del taller MD Cerámica. Permite gestionar alumnas/os,
-períodos mensuales, clases, asistencia y pagos.
+Aplicación multi-taller para gestionar alumnas/os, períodos mensuales, clases,
+asistencia y pagos. Cada taller mantiene sus propios usuarios, turnos y datos,
+y la administración de plataforma permite crear y configurar nuevos talleres.
 
 > El despliegue público está pausado hasta completar la autorización por rol y
 > taller de la fase 4. La fase 3 ya exige una sesión válida, pero todavía no
@@ -81,8 +82,14 @@ desde la terminal. Las cuentas `STUDENT` deben vincularse a una ficha existente:
 INVITE_EMAIL="alumna@example.com" \
 INVITE_ROLE="STUDENT" \
 INVITE_STUDENT_ID="123" \
+STUDIO_SLUG="md-ceramica" \
 pnpm auth:invite
 ```
+
+El primer `OWNER` creado por `auth:bootstrap` queda como administrador de
+plataforma. Desde `/admin` puede gestionar talleres y asignar usuarios. Cada
+propietario configura los turnos de su taller y consulta su auditoría; los
+administradores operativos sólo ven los datos del taller activo.
 
 El procedimiento completo de configuración y control está en
 `docs/FASE_3_RUNBOOK.md`.

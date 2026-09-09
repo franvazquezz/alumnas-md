@@ -11,6 +11,9 @@ export const RegisterSection = () => {
   const [studentForm, setStudentForm] = useState({ ...emptyStudent });
 
   const utils = api.useUtils();
+  const { data: shifts } = api.students.formOptions.useQuery(undefined, {
+    refetchOnWindowFocus: false,
+  });
   const createStudent = api.students.create.useMutation({
     onSuccess: async () => {
       await utils.students.list.invalidate();
@@ -32,7 +35,7 @@ export const RegisterSection = () => {
       birthday: studentForm.birthday ?? undefined,
       telephone: studentForm.telephone ?? undefined,
       weekday: studentForm.weekday,
-      timetable: studentForm.timetable ?? undefined,
+      shiftId: studentForm.shiftId,
       isActive: studentForm.isActive,
     });
   };
@@ -103,32 +106,24 @@ export const RegisterSection = () => {
             ))}
           </select>
           <select
-            value={studentForm.timetable}
+            value={studentForm.shiftId ?? ""}
             onChange={(e) =>
               setStudentForm({
                 ...studentForm,
-                timetable:
-                  e.target.value === "10:00"
-                    ? "10:00"
-                    : e.target.value === "16:00"
-                      ? "16:00"
-                      : e.target.value === "18:30"
-                        ? "18:30"
-                        : undefined,
+                shiftId: e.target.value ? Number(e.target.value) : null,
               })
             }
             className="border-plum/20 text-ink ring-primary/20 rounded-xl border bg-white/80 px-4 py-2 text-sm transition outline-none focus:ring-2"
           >
             <option value="">Seleccionar horario</option>
-            <option key={1} value={"10:00"}>
-              10:00
-            </option>
-            <option key={2} value={"16:00"}>
-              16:00
-            </option>
-            <option key={3} value={"18:30"}>
-              18:30
-            </option>
+            {shifts
+              ?.filter((shift) => shift.isActive)
+              .map((shift) => (
+                <option key={shift.id} value={shift.id}>
+                  {shift.startTime}
+                  {shift.label ? ` · ${shift.label}` : ""}
+                </option>
+              ))}
           </select>
           <div className="flex items-center justify-end sm:col-span-2">
             <ButtonM type="submit" loading={createStudent.isPending}>

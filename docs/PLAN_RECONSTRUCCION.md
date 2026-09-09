@@ -17,11 +17,11 @@
 
 ### Roles iniciales
 
-| Rol | Alcance |
-| --- | --- |
-| `OWNER` | Configuración del taller, usuarios, roles, estudiantes, clases y pagos |
-| `ADMIN` | Operación diaria de estudiantes, clases, asistencia y pagos |
-| `STUDENT` | Consulta únicamente sus propios datos habilitados |
+| Rol       | Alcance                                                                |
+| --------- | ---------------------------------------------------------------------- |
+| `OWNER`   | Configuración del taller, usuarios, roles, estudiantes, clases y pagos |
+| `ADMIN`   | Operación diaria de estudiantes, clases, asistencia y pagos            |
+| `STUDENT` | Consulta únicamente sus propios datos habilitados                      |
 
 No conviene guardar el rol directamente como única propiedad global de `User`. Es preferible una pertenencia al taller para que los permisos tengan contexto.
 
@@ -111,9 +111,10 @@ versionados. El proyecto Vercel continúa pausado hasta la autenticación.
 
 ## 5. Fase 2 — Reglas de dominio confiables
 
-**Estado:** implementación completa el 2 de septiembre de 2026. La migración y
-los flujos fueron validados sobre bases descartables; queda pendiente aplicarla
-en la copia local y Neon durante una ventana controlada con respaldo.
+**Estado:** reabierta el 8 de septiembre de 2026. La primera aplicación sobre
+la copia local detectó que `ovenPrice` y `materialPrice` contienen listas de
+cargos legítimos dentro de una misma clase. La migración se detuvo sin cambios
+parciales y debe corregirse antes de volver a aplicarla o avanzar sobre Neon.
 
 ### Fechas
 
@@ -125,9 +126,37 @@ en la copia local y Neon durante una ventana controlada con respaldo.
 ### Dinero
 
 1. Definir si el total incluye clase, horno y materiales.
-2. Convertir todos los importes a `Decimal`.
+2. Convertir todos los importes individuales a `Decimal`.
 3. Definir precisión, escala, mínimos y estados de pago.
 4. Centralizar el cálculo de deuda y total pagado.
+
+### Cargos múltiples por clase
+
+- Una clase de una alumna puede contener cero o más cargos adicionales.
+- Cada cargo tiene tipo (`OVEN` o `MATERIAL`), detalle, precio y estado de pago.
+- Los cargos de horno conservan cada pieza o conjunto por separado.
+- Los cargos de materiales conservan cada consumo por separado: esmalte,
+  engobe, molde, pasta, barbotina u otro concepto.
+- No se suman cargos durante la migración ni se guarda una lista dentro de un
+  campo de texto o un único importe.
+- Los textos heredados que no permiten asociar inequívocamente detalle y precio
+  deben conservarse y quedar identificados para revisión del OWNER.
+
+### Carga operativa del OWNER
+
+La interfaz debe optimizarse para grupos habituales de cuatro o cinco alumnas:
+
+1. El OWNER elige fecha y horario una sola vez.
+2. La aplicación precarga las alumnas habituales de ese horario y sus precios
+   de clase.
+3. La asistencia comienza seleccionada y el OWNER corrige sólo las ausencias.
+4. Horno y materiales se agregan como filas rápidas dentro de cada alumna, con
+   tipo, detalle, precio y pago.
+5. Un único botón guarda toda la clase mediante una transacción.
+
+La primera implementación puede crear las clases individuales de cada alumna
+en lote; no requiere introducir una entidad grupal adicional hasta que exista
+un caso de uso que la necesite.
 
 ### Agenda
 
@@ -140,6 +169,7 @@ en la copia local y Neon durante una ventana controlada con respaldo.
 
 - No hay desplazamientos de fechas.
 - Todos los totales se calculan desde importes numéricos válidos.
+- Cada cargo de horno o material continúa visible y cobrable por separado.
 - Períodos y días no dependen de texto libre.
 
 ## 6. Fase 3 — Autenticación
@@ -150,6 +180,9 @@ sesiones revocables fueron incorporados y validados sobre una base descartable.
 Quedan pendientes la configuración de secretos/proveedores y el despliegue
 controlado. La aplicación pública debe continuar pausada hasta completar la
 autorización por rol y taller de la fase 4.
+
+La aplicación controlada de esta fase queda bloqueada hasta corregir y completar
+la migración reabierta de la fase 2.
 
 ### Requisitos
 
@@ -177,6 +210,10 @@ autorización por rol y taller de la fase 4.
 - Las sesiones inválidas o revocadas no acceden a rutas protegidas.
 
 ## 7. Fase 4 — Autorización y rutas
+
+**Estado:** iniciada el 8 de septiembre de 2026. La siguiente entrega agrega
+contexto obligatorio de membresía, rol y taller a los procedimientos del
+servidor y filtra cada recurso por ese contexto.
 
 ### Rutas sugeridas
 
@@ -268,18 +305,18 @@ Una ruta protegida mejora la experiencia, pero no reemplaza la autorización del
 
 ## 10. Matriz inicial de permisos
 
-| Acción | Owner | Admin | Student |
-| --- | :---: | :---: | :---: |
-| Ver estudiantes | Sí | Sí | Sólo su ficha |
-| Crear/editar estudiantes | Sí | Sí | No |
-| Eliminar o dar de baja | Sí | Según política | No |
-| Gestionar clases | Sí | Sí | No |
-| Ver clases | Sí | Sí | Sólo propias |
-| Gestionar pagos | Sí | Sí | No |
-| Ver pagos | Sí | Sí | Sólo propios |
-| Invitar usuarios | Sí | Sí | No |
-| Cambiar roles | Sí | No | No |
-| Configurar taller | Sí | No | No |
+| Acción                   | Owner |     Admin      |    Student    |
+| ------------------------ | :---: | :------------: | :-----------: |
+| Ver estudiantes          |  Sí   |       Sí       | Sólo su ficha |
+| Crear/editar estudiantes |  Sí   |       Sí       |      No       |
+| Eliminar o dar de baja   |  Sí   | Según política |      No       |
+| Gestionar clases         |  Sí   |       Sí       |      No       |
+| Ver clases               |  Sí   |       Sí       | Sólo propias  |
+| Gestionar pagos          |  Sí   |       Sí       |      No       |
+| Ver pagos                |  Sí   |       Sí       | Sólo propios  |
+| Invitar usuarios         |  Sí   |       Sí       |      No       |
+| Cambiar roles            |  Sí   |       No       |      No       |
+| Configurar taller        |  Sí   |       No       |      No       |
 
 Esta matriz debe confirmarse antes de implementar autorización.
 

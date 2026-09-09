@@ -6,6 +6,7 @@ CREATE TYPE "Weekday" AS ENUM (
 );
 
 CREATE TYPE "PaymentStatus" AS ENUM ('PENDING', 'PAID');
+CREATE TYPE "ChargeType" AS ENUM ('OVEN', 'MATERIAL');
 
 ALTER TABLE "Student"
   ADD COLUMN "weekday" "Weekday",
@@ -74,24 +75,76 @@ SET
   "ovenPaymentStatus" = CASE WHEN "ovenPaid" THEN 'PAID'::"PaymentStatus" ELSE 'PENDING'::"PaymentStatus" END,
   "materialPaymentStatus" = CASE WHEN "materialPaid" THEN 'PAID'::"PaymentStatus" ELSE 'PENDING'::"PaymentStatus" END;
 
+CREATE TABLE "ClassCharge" (
+  "id" SERIAL NOT NULL,
+  "type" "ChargeType" NOT NULL,
+  "description" TEXT,
+  "price" DECIMAL(12,2) NOT NULL,
+  "paymentStatus" "PaymentStatus" NOT NULL DEFAULT 'PENDING',
+  "needsReview" BOOLEAN NOT NULL DEFAULT false,
+  "legacyDetail" TEXT,
+  "classId" INTEGER NOT NULL,
+  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "updatedAt" TIMESTAMP(3) NOT NULL,
+  CONSTRAINT "ClassCharge_pkey" PRIMARY KEY ("id")
+);
+
+-- Preserve every amount from legacy comma-separated oven charges. The old
+-- scalar columns are set to zero below only after each token is copied here.
+INSERT INTO "ClassCharge" (
+  "type", "description", "price", "paymentStatus", "needsReview",
+  "legacyDetail", "classId", "updatedAt"
+)
+SELECT
+  'OVEN'::"ChargeType",
+  COALESCE(NULLIF(trim(split_part(source."ovenName", ',', token.ordinality::INTEGER)), ''), 'Cargo de horno migrado ' || token.ordinality),
+  CASE
+    WHEN trim(replace(token.value, ',', '.')) ~ '^[0-9]+([.][0-9]{1,2})?$'
+      THEN trim(replace(token.value, ',', '.'))::DECIMAL(12,2)
+    ELSE 0::DECIMAL(12,2)
+  END,
+  CASE WHEN source."ovenPaid" THEN 'PAID'::"PaymentStatus" ELSE 'PENDING'::"PaymentStatus" END,
+  cardinality(regexp_split_to_array(COALESCE(source."ovenName", ''), '\s*,\s*'))
+    <> cardinality(regexp_split_to_array(source."ovenPrice", '\s*,\s*'))
+    OR trim(replace(token.value, ',', '.')) !~ '^[0-9]+([.][0-9]{1,2})?$',
+  'Nombre original: ' || COALESCE(source."ovenName", '') || ' | Importes originales: ' || source."ovenPrice",
+  source."id",
+  CURRENT_TIMESTAMP
+FROM "Class" AS source
+CROSS JOIN LATERAL regexp_split_to_table(source."ovenPrice", '\s*,\s*') WITH ORDINALITY AS token(value, ordinality)
+WHERE trim(source."ovenPrice") <> ''
+  AND trim(replace(source."ovenPrice", ',', '.')) !~ '^[0-9]+([.][0-9]{1,2})?$';
+
+-- Material descriptions can be ambiguous in the legacy data. Every amount is
+-- retained and rows whose description count differs are flagged for review.
+INSERT INTO "ClassCharge" (
+  "type", "description", "price", "paymentStatus", "needsReview",
+  "legacyDetail", "classId", "updatedAt"
+)
+SELECT
+  'MATERIAL'::"ChargeType",
+  COALESCE(NULLIF(trim(split_part(source."materialName", ',', token.ordinality::INTEGER)), ''), 'Cargo de material migrado ' || token.ordinality),
+  CASE
+    WHEN trim(replace(token.value, ',', '.')) ~ '^[0-9]+([.][0-9]{1,2})?$'
+      THEN trim(replace(token.value, ',', '.'))::DECIMAL(12,2)
+    ELSE 0::DECIMAL(12,2)
+  END,
+  CASE WHEN source."materialPaid" THEN 'PAID'::"PaymentStatus" ELSE 'PENDING'::"PaymentStatus" END,
+  cardinality(regexp_split_to_array(COALESCE(source."materialName", ''), '\s*,\s*'))
+    <> cardinality(regexp_split_to_array(source."materialPrice", '\s*,\s*'))
+    OR trim(replace(token.value, ',', '.')) !~ '^[0-9]+([.][0-9]{1,2})?$',
+  'Nombre original: ' || COALESCE(source."materialName", '') || ' | Importes originales: ' || source."materialPrice",
+  source."id",
+  CURRENT_TIMESTAMP
+FROM "Class" AS source
+CROSS JOIN LATERAL regexp_split_to_table(source."materialPrice", '\s*,\s*') WITH ORDINALITY AS token(value, ordinality)
+WHERE trim(source."materialPrice") <> ''
+  AND trim(replace(source."materialPrice", ',', '.')) !~ '^[0-9]+([.][0-9]{1,2})?$';
+
 DO $$
 BEGIN
   IF EXISTS (SELECT 1 FROM "Class" WHERE "classPrice" < 0) THEN
     RAISE EXCEPTION 'Phase 2 migration stopped: Class.classPrice contains negative values';
-  END IF;
-  IF EXISTS (
-    SELECT 1 FROM "Class"
-    WHERE trim("ovenPrice") <> ''
-      AND trim(replace("ovenPrice", ',', '.')) !~ '^[0-9]+([.][0-9]{1,2})?$'
-  ) THEN
-    RAISE EXCEPTION 'Phase 2 migration stopped: Class.ovenPrice contains invalid values';
-  END IF;
-  IF EXISTS (
-    SELECT 1 FROM "Class"
-    WHERE trim("materialPrice") <> ''
-      AND trim(replace("materialPrice", ',', '.')) !~ '^[0-9]+([.][0-9]{1,2})?$'
-  ) THEN
-    RAISE EXCEPTION 'Phase 2 migration stopped: Class.materialPrice contains invalid values';
   END IF;
 END $$;
 
@@ -122,3 +175,10 @@ ALTER TABLE "Class"
   ADD CONSTRAINT "Class_classPrice_check" CHECK ("classPrice" >= 0),
   ADD CONSTRAINT "Class_ovenPrice_check" CHECK ("ovenPrice" >= 0),
   ADD CONSTRAINT "Class_materialPrice_check" CHECK ("materialPrice" >= 0);
+
+CREATE INDEX "ClassCharge_classId_type_idx" ON "ClassCharge"("classId", "type");
+CREATE INDEX "ClassCharge_needsReview_idx" ON "ClassCharge"("needsReview");
+
+ALTER TABLE "ClassCharge"
+  ADD CONSTRAINT "ClassCharge_classId_fkey"
+  FOREIGN KEY ("classId") REFERENCES "Class"("id") ON DELETE CASCADE ON UPDATE CASCADE;
