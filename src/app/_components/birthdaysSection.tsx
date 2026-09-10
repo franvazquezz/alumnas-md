@@ -6,6 +6,7 @@ import {
   daysUntilNextBirthday,
   formatCalendarDate,
 } from "~/lib/domain/calendar-date";
+import { QueryState } from "./query-state";
 
 export const BirthdaysSection = ({
   students,
@@ -69,6 +70,14 @@ export const BirthdaysSection = ({
             </div>
           ))}
         </div>
+        {studentsWithUpcomingBirthdays.length === 0 ? (
+          <QueryState
+            compact
+            kind="empty"
+            title="Sin cumpleaños próximos"
+            description="No hay fechas cargadas para mostrar en este momento."
+          />
+        ) : null}
       </Stack>
     </section>
   );

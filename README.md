@@ -151,12 +151,30 @@ vacías y conservar un respaldo reciente.
 pnpm check
 pnpm build
 pnpm verify:css-theme
+pnpm test:e2e:install
 ```
 
 `pnpm check` ejecuta formato, ESLint, TypeScript y las pruebas unitarias de
 fechas, dinero y agenda. GitHub Actions repite esas verificaciones, el build y
 el control del tema CSS generado con Node.js 20 en cada pull request y push a
 `main`.
+
+Las pruebas E2E levantan un servidor local aislado y requieren cuentas QA ya
+creadas en la base local. Las credenciales se pasan por variables y nunca se
+versionan:
+
+```bash
+E2E_ADMIN_EMAIL="..." \
+E2E_ADMIN_PASSWORD="..." \
+E2E_ADMIN_STUDENT_ID="..." \
+E2E_STUDENT_EMAIL="..." \
+E2E_STUDENT_PASSWORD="..." \
+pnpm test:e2e
+```
+
+Si `E2E_BASE_URL` no está definido, Playwright inicia Next.js en el puerto
+`3000`. La suite sólo consulta datos: valida acceso, roles, estados de interfaz
+y navegación sin crear, editar ni eliminar registros.
 
 ## Reglas de dominio
 

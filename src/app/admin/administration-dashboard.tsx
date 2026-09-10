@@ -7,6 +7,7 @@ import { LuArrowLeft, LuPlus, LuSave, LuTrash2 } from "react-icons/lu";
 
 import { AccountActions } from "~/app/_components/account-actions";
 import { ButtonM } from "~/app/_components/button";
+import { QueryState } from "~/app/_components/query-state";
 import { StudioSwitcher } from "~/app/_components/studio-switcher";
 import { api, type RouterOutputs } from "~/trpc/react";
 
@@ -250,6 +251,14 @@ function ShiftSettings({ shifts }: { shifts: Shift[] }) {
 
   return (
     <div className="space-y-3">
+      {shifts.length === 0 ? (
+        <QueryState
+          compact
+          kind="empty"
+          title="Todavía no hay turnos"
+          description="Agrega el primer horario para organizar la agenda."
+        />
+      ) : null}
       {shifts.map((shift) => (
         <ShiftRow key={shift.id} shift={shift} />
       ))}
@@ -443,6 +452,14 @@ function StudiosCrud({ studios }: { studios: Studio[] }) {
           <StudioCard key={studio.id} studio={studio} />
         ))}
       </div>
+      {studios.length === 0 ? (
+        <QueryState
+          compact
+          kind="empty"
+          title="Todavía no hay talleres"
+          description="Crea el primero con el formulario superior."
+        />
+      ) : null}
     </div>
   );
 }
@@ -625,20 +642,33 @@ export function AdministrationDashboard({
   isOwner: boolean;
   canManageCurrent: boolean;
 }) {
-  const { data: overview, isLoading } = api.administration.overview.useQuery(
-    undefined,
-    { enabled: canManageCurrent },
-  );
-  const { data: studios } = api.administration.listStudios.useQuery(undefined, {
+  const overviewQuery = api.administration.overview.useQuery(undefined, {
+    enabled: canManageCurrent,
+  });
+  const studiosQuery = api.administration.listStudios.useQuery(undefined, {
     enabled: isPlatformAdmin,
   });
-  const { data: users } = api.administration.listUsers.useQuery(undefined, {
+  const usersQuery = api.administration.listUsers.useQuery(undefined, {
     enabled: isPlatformAdmin,
   });
-  const { data: students } = api.administration.listStudents.useQuery(
-    undefined,
-    { enabled: isPlatformAdmin },
-  );
+  const studentsQuery = api.administration.listStudents.useQuery(undefined, {
+    enabled: isPlatformAdmin,
+  });
+  const overview = overviewQuery.data;
+  const studios = studiosQuery.data;
+  const users = usersQuery.data;
+  const students = studentsQuery.data;
+  const platformIsLoading =
+    studiosQuery.isLoading || usersQuery.isLoading || studentsQuery.isLoading;
+  const platformIsError =
+    studiosQuery.isError || usersQuery.isError || studentsQuery.isError;
+  const retryPlatform = () => {
+    void Promise.all([
+      studiosQuery.refetch(),
+      usersQuery.refetch(),
+      studentsQuery.refetch(),
+    ]);
+  };
 
   return (
     <main className="mx-auto flex min-h-screen max-w-7xl flex-col gap-7 px-4 py-8">
@@ -667,8 +697,20 @@ export function AdministrationDashboard({
         </div>
       </header>
 
-      {canManageCurrent && isLoading ? (
-        <p className="text-plum/70">Cargando taller...</p>
+      {canManageCurrent && overviewQuery.isLoading ? (
+        <QueryState
+          kind="loading"
+          title="Cargando administración"
+          description="Estamos preparando la información del taller activo."
+        />
+      ) : null}
+      {canManageCurrent && overviewQuery.isError ? (
+        <QueryState
+          kind="error"
+          title="No pudimos cargar el taller"
+          description="La configuración y la auditoría no están disponibles por el momento."
+          onRetry={() => void overviewQuery.refetch()}
+        />
       ) : null}
       {overview ? (
         <>
@@ -762,7 +804,27 @@ export function AdministrationDashboard({
         </>
       ) : null}
 
-      {isPlatformAdmin && studios && users && students ? (
+      {isPlatformAdmin && platformIsLoading ? (
+        <QueryState
+          kind="loading"
+          title="Cargando administración de plataforma"
+          description="Estamos obteniendo talleres, usuarios y asignaciones."
+        />
+      ) : null}
+      {isPlatformAdmin && platformIsError ? (
+        <QueryState
+          kind="error"
+          title="No pudimos cargar la plataforma"
+          description="Reintenta para recuperar talleres, usuarios y asignaciones."
+          onRetry={retryPlatform}
+        />
+      ) : null}
+      {isPlatformAdmin &&
+      !platformIsLoading &&
+      !platformIsError &&
+      studios &&
+      users &&
+      students ? (
         <>
           <section className="ring-primary/10 rounded-3xl bg-white/85 p-6 shadow-lg ring-1">
             <p className="text-primary/70 text-xs font-bold tracking-widest uppercase">
@@ -789,6 +851,14 @@ export function AdministrationDashboard({
                   students={students}
                 />
               ))}
+              {users.length === 0 ? (
+                <QueryState
+                  compact
+                  kind="empty"
+                  title="Todavía no hay usuarios"
+                  description="Los usuarios aparecerán aquí después de registrarse o aceptar una invitación."
+                />
+              ) : null}
             </div>
           </section>
         </>

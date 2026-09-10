@@ -261,8 +261,9 @@ incorpora el portal STUDENT compartido y las rutas `/mi-cuenta`, `/mis-clases` y
 `/mis-pagos`, siempre resueltas desde la identidad y el taller activo de la
 sesión. La segunda entrega divide la ficha administrativa de estudiante por
 responsabilidad, comparte los campos de clase y elimina el ciclo de imports del
-botón. Pasan la validación local de STUDENT y ADMIN, `pnpm check` y el build con
-Node.js 20.
+botón. La tercera incorpora estados compartidos de carga, error y vacío, además
+de una suite Playwright para acceso anónimo, ADMIN y STUDENT. Pasan la
+validación local de roles, `pnpm check` y el build con Node.js 20.
 
 ### Panel administrativo
 
@@ -290,8 +291,10 @@ Node.js 20.
 4. Corregir etiquetas, semántica, `lang="es"` y enlaces dentro de botones.
 5. Añadir estados de carga, error y vacío consistentes.
 
-Los puntos 1 y 2 están completos. El punto 3 está aplicado a la ficha de
-estudiante y continúa para el resto del panel. Los puntos 4 y 5 siguen en curso.
+Los puntos 1, 2 y 5 están completos en las superficies principales. El punto 3
+está aplicado a la ficha de estudiante y continúa para el resto del panel. El
+punto 4 ya corrigió idioma, búsqueda, alta, eliminación y el enlace de detalle;
+continúa en los formularios avanzados de administración.
 
 ## 9. Fase 6 — Pruebas, observabilidad y despliegue
 

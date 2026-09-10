@@ -53,16 +53,20 @@ export const HeaderSection = ({
           <div className="flex gap-3">
             <StatCard
               label="Alumnos activos"
-              value={stats.totalStudents.toString()}
+              value={students ? stats.totalStudents.toString() : "—"}
             />
             <StatCard
               label="Clases cargadas"
-              value={stats.totalClasses.toString()}
+              value={students ? stats.totalClasses.toString() : "—"}
             />
           </div>
         </div>
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+          <label className="sr-only" htmlFor="student-search">
+            Buscar alumno
+          </label>
           <input
+            id="student-search"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Buscar alumno..."

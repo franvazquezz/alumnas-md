@@ -1,5 +1,6 @@
 import { Stack, Text, Title } from "@mantine/core";
 import { ButtonM } from "./button";
+import { QueryState } from "./query-state";
 import Link from "next/link";
 import { LuTrash2 } from "react-icons/lu";
 import {
@@ -14,10 +15,16 @@ import { useMemo } from "react";
 
 export const StudentsSection = ({
   isLoading,
+  isError,
   students,
+  search,
+  onRetry,
 }: {
   isLoading: boolean;
+  isError: boolean;
   students?: Student[];
+  search: string;
+  onRetry: () => void;
 }) => {
   const utils = api.useUtils();
 
@@ -90,12 +97,24 @@ export const StudentsSection = ({
           </p>
           <h2 className="text-plum text-2xl font-semibold">Listado</h2>
         </div>
-        <div className="flex items-center gap-3">
-          {isLoading && <p className="text-plum/60 text-sm">Cargando...</p>}
-        </div>
       </div>
 
       <div className="flex flex-col gap-6">
+        {isLoading ? (
+          <QueryState
+            kind="loading"
+            title="Cargando alumnos"
+            description="Estamos preparando el listado del taller."
+          />
+        ) : null}
+        {isError ? (
+          <QueryState
+            kind="error"
+            title="No pudimos cargar los alumnos"
+            description="Revisa la conexión e inténtalo nuevamente."
+            onRetry={onRetry}
+          />
+        ) : null}
         {groupedStudents.map((dayGroup) => (
           <div key={dayGroup.label} className="flex flex-col gap-4">
             <div className="flex items-center gap-3">
@@ -141,13 +160,15 @@ export const StudentsSection = ({
                             </Text>
                           </div>
                           <div className="flex gap-2">
-                            <ButtonM variant="danger">
-                              <Link href={`/students/${student.id}`}>
-                                <Text size="xs">Ver detalle</Text>
-                              </Link>
-                            </ButtonM>
+                            <Link
+                              href={`/students/${student.id}`}
+                              className="bg-plum text-sand inline-flex items-center gap-2 rounded-full px-4 py-2 text-xs font-semibold shadow-[0_10px_30px_rgba(88,43,57,0.3)] transition-all hover:-translate-y-0.5"
+                            >
+                              Ver detalle
+                            </Link>
                             <ButtonM
                               variant="danger"
+                              aria-label={`Eliminar a ${student.name}`}
                               onClick={() =>
                                 deleteStudent.mutate({ id: student.id })
                               }
@@ -165,11 +186,18 @@ export const StudentsSection = ({
             </div>
           </div>
         ))}
-        {!isLoading && (students?.length ?? 0) === 0 ? (
-          <p className="border-plum/30 text-plum/70 rounded-2xl border border-dashed bg-white/60 p-6 text-center text-sm">
-            Aún no hay alumnos cargados. Crea el primero para empezar a
-            registrar clases.
-          </p>
+        {!isLoading && !isError && (students?.length ?? 0) === 0 ? (
+          <QueryState
+            kind="empty"
+            title={
+              search.trim() ? "Sin coincidencias" : "Todavía no hay alumnos"
+            }
+            description={
+              search.trim()
+                ? `No encontramos alumnos para “${search.trim()}”.`
+                : "Crea el primero para empezar a registrar clases."
+            }
+          />
         ) : null}
       </div>
     </section>

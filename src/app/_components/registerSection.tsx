@@ -5,13 +5,14 @@ import { api } from "~/trpc/react";
 import { showNotification } from "@mantine/notifications";
 import { emptyStudent, WEEK_DAYS } from "~/types/utils";
 import type { WeekdayOption } from "~/types/students";
+import { QueryState } from "./query-state";
 
 export const RegisterSection = () => {
   const [showCreateStudent, setShowCreateStudent] = useState(false);
   const [studentForm, setStudentForm] = useState({ ...emptyStudent });
 
   const utils = api.useUtils();
-  const { data: shifts } = api.students.formOptions.useQuery(undefined, {
+  const shiftsQuery = api.students.formOptions.useQuery(undefined, {
     refetchOnWindowFocus: false,
   });
   const createStudent = api.students.create.useMutation({
@@ -59,79 +60,116 @@ export const RegisterSection = () => {
         </ButtonM>
       </div>
       {showCreateStudent ? (
-        <form
-          className="grid grid-cols-1 gap-3 sm:grid-cols-2"
-          onSubmit={handleCreateStudent}
-        >
-          <input
-            required
-            value={studentForm.name}
-            onChange={(e) =>
-              setStudentForm({ ...studentForm, name: e.target.value })
-            }
-            placeholder="Nombre completo"
-            className="border-plum/20 text-ink ring-primary/20 rounded-xl border bg-white/80 px-4 py-2 text-sm transition outline-none focus:ring-2"
+        shiftsQuery.isLoading ? (
+          <QueryState
+            compact
+            kind="loading"
+            title="Cargando formulario"
+            description="Estamos obteniendo los turnos disponibles."
           />
-          <input
-            type="date"
-            value={studentForm.birthday}
-            onChange={(e) =>
-              setStudentForm({ ...studentForm, birthday: e.target.value })
-            }
-            className="border-plum/20 text-ink ring-primary/20 rounded-xl border bg-white/80 px-4 py-2 text-sm transition outline-none focus:ring-2"
+        ) : shiftsQuery.isError ? (
+          <QueryState
+            compact
+            kind="error"
+            title="No pudimos cargar los turnos"
+            description="Reintenta antes de registrar un alumno."
+            onRetry={() => void shiftsQuery.refetch()}
           />
-          <input
-            value={studentForm.telephone}
-            onChange={(e) =>
-              setStudentForm({ ...studentForm, telephone: e.target.value })
-            }
-            placeholder="Teléfono"
-            className="border-plum/20 text-ink ring-primary/20 rounded-xl border bg-white/80 px-4 py-2 text-sm transition outline-none focus:ring-2"
-          />
-          <select
-            value={studentForm.weekday ?? ""}
-            onChange={(e) =>
-              setStudentForm({
-                ...studentForm,
-                weekday: (e.target.value || null) as WeekdayOption | null,
-              })
-            }
-            className="border-plum/20 text-ink ring-primary/20 rounded-xl border bg-white/80 px-4 py-2 text-sm transition outline-none focus:ring-2"
+        ) : (
+          <form
+            className="grid grid-cols-1 gap-3 sm:grid-cols-2"
+            onSubmit={handleCreateStudent}
           >
-            <option value="">Seleccionar día</option>
-            {WEEK_DAYS.map((day) => (
-              <option key={day.value} value={day.value}>
-                {day.label}
-              </option>
-            ))}
-          </select>
-          <select
-            value={studentForm.shiftId ?? ""}
-            onChange={(e) =>
-              setStudentForm({
-                ...studentForm,
-                shiftId: e.target.value ? Number(e.target.value) : null,
-              })
-            }
-            className="border-plum/20 text-ink ring-primary/20 rounded-xl border bg-white/80 px-4 py-2 text-sm transition outline-none focus:ring-2"
-          >
-            <option value="">Seleccionar horario</option>
-            {shifts
-              ?.filter((shift) => shift.isActive)
-              .map((shift) => (
-                <option key={shift.id} value={shift.id}>
-                  {shift.startTime}
-                  {shift.label ? ` · ${shift.label}` : ""}
+            <label className="sr-only" htmlFor="student-name">
+              Nombre completo
+            </label>
+            <input
+              id="student-name"
+              required
+              value={studentForm.name}
+              onChange={(e) =>
+                setStudentForm({ ...studentForm, name: e.target.value })
+              }
+              placeholder="Nombre completo"
+              className="border-plum/20 text-ink ring-primary/20 rounded-xl border bg-white/80 px-4 py-2 text-sm transition outline-none focus:ring-2"
+            />
+            <label className="sr-only" htmlFor="student-birthday">
+              Cumpleaños
+            </label>
+            <input
+              id="student-birthday"
+              type="date"
+              value={studentForm.birthday}
+              onChange={(e) =>
+                setStudentForm({ ...studentForm, birthday: e.target.value })
+              }
+              className="border-plum/20 text-ink ring-primary/20 rounded-xl border bg-white/80 px-4 py-2 text-sm transition outline-none focus:ring-2"
+            />
+            <label className="sr-only" htmlFor="student-telephone">
+              Teléfono
+            </label>
+            <input
+              id="student-telephone"
+              value={studentForm.telephone}
+              onChange={(e) =>
+                setStudentForm({ ...studentForm, telephone: e.target.value })
+              }
+              placeholder="Teléfono"
+              className="border-plum/20 text-ink ring-primary/20 rounded-xl border bg-white/80 px-4 py-2 text-sm transition outline-none focus:ring-2"
+            />
+            <label className="sr-only" htmlFor="student-weekday">
+              Día preferido
+            </label>
+            <select
+              id="student-weekday"
+              value={studentForm.weekday ?? ""}
+              onChange={(e) =>
+                setStudentForm({
+                  ...studentForm,
+                  weekday: (e.target.value || null) as WeekdayOption | null,
+                })
+              }
+              className="border-plum/20 text-ink ring-primary/20 rounded-xl border bg-white/80 px-4 py-2 text-sm transition outline-none focus:ring-2"
+            >
+              <option value="">Seleccionar día</option>
+              {WEEK_DAYS.map((day) => (
+                <option key={day.value} value={day.value}>
+                  {day.label}
                 </option>
               ))}
-          </select>
-          <div className="flex items-center justify-end sm:col-span-2">
-            <ButtonM type="submit" loading={createStudent.isPending}>
-              <LuPlus className="h-4 w-4" />
-              Crear alumno
-            </ButtonM>
-          </div>
-        </form>
+            </select>
+            <label className="sr-only" htmlFor="student-shift">
+              Horario
+            </label>
+            <select
+              id="student-shift"
+              value={studentForm.shiftId ?? ""}
+              onChange={(e) =>
+                setStudentForm({
+                  ...studentForm,
+                  shiftId: e.target.value ? Number(e.target.value) : null,
+                })
+              }
+              className="border-plum/20 text-ink ring-primary/20 rounded-xl border bg-white/80 px-4 py-2 text-sm transition outline-none focus:ring-2"
+            >
+              <option value="">Seleccionar horario</option>
+              {shiftsQuery.data
+                ?.filter((shift) => shift.isActive)
+                .map((shift) => (
+                  <option key={shift.id} value={shift.id}>
+                    {shift.startTime}
+                    {shift.label ? ` · ${shift.label}` : ""}
+                  </option>
+                ))}
+            </select>
+            <div className="flex items-center justify-end sm:col-span-2">
+              <ButtonM type="submit" loading={createStudent.isPending}>
+                <LuPlus className="h-4 w-4" />
+                Crear alumno
+              </ButtonM>
+            </div>
+          </form>
+        )
       ) : null}
     </section>
   );

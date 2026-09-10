@@ -6,22 +6,37 @@ import { LuArrowLeft, LuLoader2 } from "react-icons/lu";
 
 import { StudentClassesSection } from "~/app/_components/student-detail/student-classes-section";
 import { StudentPersonalDetail } from "~/app/_components/studentPersonalDetail";
+import { QueryState } from "~/app/_components/query-state";
 import { api } from "~/trpc/react";
 
 export function StudentDetail() {
   const { id } = useParams<{ id: string }>();
   const studentId = Number(id);
   const isValidId = Number.isFinite(studentId);
-  const { data, isLoading } = api.students.byId.useQuery(
+  const studentQuery = api.students.byId.useQuery(
     { id: studentId },
     { enabled: isValidId },
   );
+  const { data } = studentQuery;
 
-  if (isLoading) {
+  if (studentQuery.isLoading) {
     return (
       <div className="text-plum mx-auto flex max-w-4xl items-center justify-center py-10">
         <LuLoader2 className="h-5 w-5 animate-spin" />
         <span className="ml-2 text-sm">Cargando alumno...</span>
+      </div>
+    );
+  }
+
+  if (studentQuery.isError) {
+    return (
+      <div className="mx-auto max-w-3xl px-4 py-10">
+        <QueryState
+          kind="error"
+          title="No pudimos cargar la ficha"
+          description="Revisa la conexión e inténtalo nuevamente."
+          onRetry={() => void studentQuery.refetch()}
+        />
       </div>
     );
   }

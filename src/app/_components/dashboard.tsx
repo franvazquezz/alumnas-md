@@ -9,7 +9,7 @@ import { HeaderSection } from "./headerSection";
 export function Dashboard() {
   const [search, setSearch] = useState("");
 
-  const { data: students, isLoading } = api.students.list.useQuery(
+  const studentsQuery = api.students.list.useQuery(
     { search: search.trim() ?? undefined },
     { refetchOnWindowFocus: false },
   );
@@ -17,13 +17,21 @@ export function Dashboard() {
   return (
     <div className="mx-auto flex max-w-6xl flex-col gap-10 px-4 py-10">
       <HeaderSection
-        students={students}
+        students={studentsQuery.data}
         search={search}
         setSearch={setSearch}
       />
       <RegisterSection />
-      <BirthdaysSection students={students} />
-      <StudentsSection isLoading={isLoading} students={students} />
+      {studentsQuery.data ? (
+        <BirthdaysSection students={studentsQuery.data} />
+      ) : null}
+      <StudentsSection
+        isLoading={studentsQuery.isLoading}
+        isError={studentsQuery.isError}
+        students={studentsQuery.data}
+        search={search}
+        onRetry={() => void studentsQuery.refetch()}
+      />
     </div>
   );
 }
