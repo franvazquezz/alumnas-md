@@ -111,10 +111,12 @@ versionados. El proyecto Vercel continúa pausado hasta la autenticación.
 
 ## 5. Fase 2 — Reglas de dominio confiables
 
-**Estado:** reabierta el 8 de septiembre de 2026. La primera aplicación sobre
-la copia local detectó que `ovenPrice` y `materialPrice` contienen listas de
-cargos legítimos dentro de una misma clase. La migración se detuvo sin cambios
-parciales y debe corregirse antes de volver a aplicarla o avanzar sobre Neon.
+**Estado:** cerrada localmente el 9 de septiembre de 2026. La migración conserva
+cada importe heredado en `ClassCharge`: quedaron seis cargos, los cuatro
+materiales ambiguos fueron asociados por el OWNER y no hay registros con
+`needsReview = true`. La asociación quedó versionada en una migración defensiva
+e idempotente. Neon continúa sin cambios hasta el despliegue controlado y la
+verificación final sobre una base descartable.
 
 ### Fechas
 
@@ -181,8 +183,9 @@ Quedan pendientes la configuración de secretos/proveedores y el despliegue
 controlado. La aplicación pública debe continuar pausada hasta completar la
 autorización por rol y taller de la fase 4.
 
-La aplicación controlada de esta fase queda bloqueada hasta corregir y completar
-la migración reabierta de la fase 2.
+La revisión de datos de la fase 2 y la autorización de la fase 4 están cerradas
+en local. El despliegue continúa pendiente de secretos, respaldo y verificación
+integral de producción.
 
 ### Requisitos
 
@@ -211,9 +214,10 @@ la migración reabierta de la fase 2.
 
 ## 7. Fase 4 — Autorización y rutas
 
-**Estado:** iniciada el 8 de septiembre de 2026. La siguiente entrega agrega
-contexto obligatorio de membresía, rol y taller a los procedimientos del
-servidor y filtra cada recurso por ese contexto.
+**Estado:** cerrada localmente el 9 de septiembre de 2026. Los flujos OWNER,
+ADMIN y STUDENT, el aislamiento entre talleres, las redirecciones anónimas, el
+rechazo de cuentas sin membresía y la revocación de sesión pasan en
+`localhost:3000`.
 
 ### Rutas sugeridas
 
@@ -252,6 +256,14 @@ Una ruta protegida mejora la experiencia, pero no reemplaza la autorización del
 
 ## 8. Fase 5 — Separación de experiencias
 
+**Estado:** en curso desde el 9 de septiembre de 2026. La primera entrega
+incorpora el portal STUDENT compartido y las rutas `/mi-cuenta`, `/mis-clases` y
+`/mis-pagos`, siempre resueltas desde la identidad y el taller activo de la
+sesión. La segunda entrega divide la ficha administrativa de estudiante por
+responsabilidad, comparte los campos de clase y elimina el ciclo de imports del
+botón. Pasan la validación local de STUDENT y ADMIN, `pnpm check` y el build con
+Node.js 20.
+
 ### Panel administrativo
 
 - estudiantes y estados;
@@ -277,6 +289,9 @@ Una ruta protegida mejora la experiencia, pero no reemplaza la autorización del
 3. Reutilizar formularios y tarjetas existentes o retirar código muerto.
 4. Corregir etiquetas, semántica, `lang="es"` y enlaces dentro de botones.
 5. Añadir estados de carga, error y vacío consistentes.
+
+Los puntos 1 y 2 están completos. El punto 3 está aplicado a la ficha de
+estudiante y continúa para el resto del panel. Los puntos 4 y 5 siguen en curso.
 
 ## 9. Fase 6 — Pruebas, observabilidad y despliegue
 

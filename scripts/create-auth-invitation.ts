@@ -1,7 +1,17 @@
+import { existsSync } from "node:fs";
+import { loadEnvFile } from "node:process";
+
 import { sendAuthEmail } from "../src/lib/auth/email";
-import { createInvitation } from "../src/lib/auth/invitations";
 import { normalizeEmail } from "../src/lib/auth/tokens";
-import { db } from "../src/server/db";
+
+for (const envFile of [".env.local", ".env"]) {
+  if (existsSync(envFile)) loadEnvFile(envFile);
+}
+
+const [{ createInvitation }, { db }] = await Promise.all([
+  import("../src/lib/auth/invitations"),
+  import("../src/server/db"),
+]);
 
 const email = process.env.INVITE_EMAIL;
 const role = process.env.INVITE_ROLE ?? "STUDENT";

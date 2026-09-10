@@ -10,11 +10,39 @@ export function AccountActions() {
   });
   const canOpenAdministration = [
     data?.isPlatformAdmin,
-    data?.studios.some((studio) => studio.role === "OWNER"),
+    data?.studios.some(
+      (studio) => studio.role === "OWNER" || studio.role === "ADMIN",
+    ),
   ].some(Boolean);
+  const activeMembership = data?.studios.find(
+    (studio) => studio.id === data.activeStudioId,
+  );
+  const isStudent = activeMembership?.role === "STUDENT";
 
   return (
     <div className="flex flex-wrap justify-end gap-2">
+      {isStudent ? (
+        <>
+          <Link
+            href="/mi-cuenta"
+            className="border-plum/20 rounded-xl border bg-white/70 px-3 py-2 text-sm font-semibold"
+          >
+            Mi cuenta
+          </Link>
+          <Link
+            href="/mis-clases"
+            className="border-plum/20 rounded-xl border bg-white/70 px-3 py-2 text-sm font-semibold"
+          >
+            Mis clases
+          </Link>
+          <Link
+            href="/mis-pagos"
+            className="border-plum/20 rounded-xl border bg-white/70 px-3 py-2 text-sm font-semibold"
+          >
+            Mis pagos
+          </Link>
+        </>
+      ) : null}
       {canOpenAdministration ? (
         <Link
           href="/admin"

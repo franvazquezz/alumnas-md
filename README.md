@@ -4,9 +4,9 @@ Aplicación multi-taller para gestionar alumnas/os, períodos mensuales, clases,
 asistencia y pagos. Cada taller mantiene sus propios usuarios, turnos y datos,
 y la administración de plataforma permite crear y configurar nuevos talleres.
 
-> El despliegue público está pausado hasta completar la autorización por rol y
-> taller de la fase 4. La fase 3 ya exige una sesión válida, pero todavía no
-> limita cada operación al rol y al taller correspondiente.
+> El despliegue público está pausado. Las fases 2 y 4 están cerradas en local y
+> Neon continúa sin cambios hasta preparar secretos, respaldo y despliegue
+> controlado.
 
 ## Tecnologías
 
@@ -75,6 +75,9 @@ OWNER_PASSWORD="una-clave-de-al-menos-12-caracteres" \
 pnpm auth:bootstrap
 ```
 
+Los scripts `auth:bootstrap` y `auth:invite` cargan primero `.env.local` y luego
+`.env`; las variables ya definidas por el entorno conservan prioridad.
+
 Hasta que exista la interfaz administrativa de invitaciones, se puede crear una
 desde la terminal. Las cuentas `STUDENT` deben vincularse a una ficha existente:
 
@@ -93,6 +96,12 @@ administradores operativos sólo ven los datos del taller activo.
 
 El procedimiento completo de configuración y control está en
 `docs/FASE_3_RUNBOOK.md`.
+
+La matriz de permisos, la administración multi-taller y su validación están
+documentadas en `docs/FASE_4_RUNBOOK.md`.
+
+El portal del estudiante y el avance de la separación de experiencias se
+documentan en `docs/FASE_5_RUNBOOK.md`.
 
 ## Migraciones
 

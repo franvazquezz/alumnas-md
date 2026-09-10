@@ -5,6 +5,8 @@ export const ButtonM = ({
   children,
   variant = "primary",
   loading = false,
+  className = "",
+  disabled = false,
   ...props
 }: ButtonHTMLAttributes<HTMLButtonElement> & {
   variant?: "primary" | "ghost" | "danger";
@@ -23,8 +25,8 @@ export const ButtonM = ({
 
   return (
     <button
-      className={`${base} ${variants[variant]}`}
-      disabled={loading}
+      className={`${base} ${variants[variant]} ${className}`}
+      disabled={loading || disabled}
       {...props}
     >
       {loading ? <LuLoader2 className="h-4 w-4 animate-spin" /> : null}

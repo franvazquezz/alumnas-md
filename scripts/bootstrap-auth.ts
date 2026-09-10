@@ -1,6 +1,14 @@
+import { existsSync } from "node:fs";
+import { loadEnvFile } from "node:process";
+
 import { hashPassword } from "../src/lib/auth/password";
 import { normalizeEmail } from "../src/lib/auth/tokens";
-import { db } from "../src/server/db";
+
+for (const envFile of [".env.local", ".env"]) {
+  if (existsSync(envFile)) loadEnvFile(envFile);
+}
+
+const { db } = await import("../src/server/db");
 
 const email = process.env.OWNER_EMAIL;
 const password = process.env.OWNER_PASSWORD;

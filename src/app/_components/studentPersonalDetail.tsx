@@ -1,27 +1,25 @@
-import React, { useMemo, useState } from "react";
+import { useState } from "react";
+import type { FormEvent } from "react";
 import { LuSave } from "react-icons/lu";
-import { Button } from "./student-detail";
+import { ButtonM } from "./button";
 import { api } from "~/trpc/react";
 import { type Student } from "~/types/utils";
 import { showNotification } from "@mantine/notifications";
-import { useParams } from "next/navigation";
 import { formatCalendarDate } from "~/lib/domain/calendar-date";
 import { formatMoney } from "~/lib/domain/money";
 import type { StudentFormState, WeekdayOption } from "~/types/students";
 import { getWeekday, WEEK_DAYS } from "~/types/utils";
 
-export const StudentPersonalDetail = ({
-  data,
-  form,
-  setForm,
-}: {
-  data: Student;
-  form: StudentFormState;
-  setForm: React.Dispatch<React.SetStateAction<StudentFormState>>;
-}) => {
-  const { id } = useParams();
-  const studentId = Number(id);
-  const isValidId = Number.isFinite(studentId);
+export const StudentPersonalDetail = ({ data }: { data: Student }) => {
+  const studentId = data.id;
+  const [form, setForm] = useState<StudentFormState>(() => ({
+    name: data.name ?? "",
+    birthday: data.birthday ?? "",
+    telephone: data.telephone ?? "",
+    weekday: data.weekday,
+    shiftId: data.shiftId,
+    isActive: data.isActive,
+  }));
   const [showEditDetails, setShowEditDetails] = useState(false);
 
   const utils = api.useUtils();
@@ -41,23 +39,18 @@ export const StudentPersonalDetail = ({
       }),
   });
 
-  const studentStats = useMemo(() => {
-    if (!data) return null;
-    return {
-      classes: data.classes.length,
-      paidClasses: data.classes.filter(
-        (cls) => cls.classPaymentStatus === "PAID",
-      ).length,
-      pendingClasses: data.classes.filter(
-        (cls) => cls.classPaymentStatus === "PENDING",
-      ).length,
-      ...data.financialSummary,
-    };
-  }, [data]);
+  const studentStats = {
+    classes: data.classes.length,
+    paidClasses: data.classes.filter((cls) => cls.classPaymentStatus === "PAID")
+      .length,
+    pendingClasses: data.classes.filter(
+      (cls) => cls.classPaymentStatus === "PENDING",
+    ).length,
+    ...data.financialSummary,
+  };
 
-  const handleSaveStudent = (e: React.FormEvent) => {
+  const handleSaveStudent = (e: FormEvent) => {
     e.preventDefault();
-    if (!isValidId) return;
     updateStudent.mutate({
       id: studentId,
       name: form.name ?? undefined,
@@ -77,35 +70,33 @@ export const StudentPersonalDetail = ({
           </p>
           <h1 className="text-plum text-3xl font-black">{data.name}</h1>
         </div>
-        <Button
+        <ButtonM
           type="button"
           variant="ghost"
           onClick={() => setShowEditDetails((prev) => !prev)}
         >
           {showEditDetails ? "Ocultar edición" : "Editar alumno"}
-        </Button>
-        {studentStats ? (
-          <div className="grid grid-cols-2 gap-3 text-sm md:grid-cols-4">
-            <span className="bg-primary/10 text-primary rounded-xl px-3 py-2 font-semibold">
-              Clases: {studentStats.classes}
-            </span>
-            <span className="bg-secondary/20 text-plum rounded-xl px-3 py-2 font-semibold">
-              Pagadas: {studentStats.paidClasses}
-            </span>
-            <span className="text-plum/70 ring-plum/15 rounded-xl bg-white px-3 py-2 font-semibold ring-1">
-              Pendientes: {studentStats.pendingClasses}
-            </span>
-            <span className="text-plum/80 ring-plum/10 rounded-xl bg-white px-3 py-2 font-semibold ring-1">
-              Total: {formatMoney(studentStats.total)}
-            </span>
-            <span className="text-primary/80 ring-primary/20 rounded-xl bg-white px-3 py-2 font-semibold ring-1">
-              Pagado: {formatMoney(studentStats.paid)}
-            </span>
-            <span className="text-plum/70 ring-plum/15 rounded-xl bg-white px-3 py-2 font-semibold ring-1">
-              Deuda: {formatMoney(studentStats.debt)}
-            </span>
-          </div>
-        ) : null}
+        </ButtonM>
+        <div className="grid grid-cols-2 gap-3 text-sm md:grid-cols-4">
+          <span className="bg-primary/10 text-primary rounded-xl px-3 py-2 font-semibold">
+            Clases: {studentStats.classes}
+          </span>
+          <span className="bg-secondary/20 text-plum rounded-xl px-3 py-2 font-semibold">
+            Pagadas: {studentStats.paidClasses}
+          </span>
+          <span className="text-plum/70 ring-plum/15 rounded-xl bg-white px-3 py-2 font-semibold ring-1">
+            Pendientes: {studentStats.pendingClasses}
+          </span>
+          <span className="text-plum/80 ring-plum/10 rounded-xl bg-white px-3 py-2 font-semibold ring-1">
+            Total: {formatMoney(studentStats.total)}
+          </span>
+          <span className="text-primary/80 ring-primary/20 rounded-xl bg-white px-3 py-2 font-semibold ring-1">
+            Pagado: {formatMoney(studentStats.paid)}
+          </span>
+          <span className="text-plum/70 ring-plum/15 rounded-xl bg-white px-3 py-2 font-semibold ring-1">
+            Deuda: {formatMoney(studentStats.debt)}
+          </span>
+        </div>
       </div>
 
       {showEditDetails ? (
@@ -182,10 +173,10 @@ export const StudentPersonalDetail = ({
             Alumno activo
           </label>
           <div className="flex justify-end md:col-span-2">
-            <Button type="submit" loading={updateStudent.isPending}>
+            <ButtonM type="submit" loading={updateStudent.isPending}>
               <LuSave className="h-4 w-4" />
               Guardar alumno
-            </Button>
+            </ButtonM>
           </div>
         </form>
       ) : (

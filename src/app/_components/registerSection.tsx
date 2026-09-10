@@ -32,8 +32,8 @@ export const RegisterSection = () => {
     e.preventDefault();
     createStudent.mutate({
       ...studentForm,
-      birthday: studentForm.birthday ?? undefined,
-      telephone: studentForm.telephone ?? undefined,
+      birthday: studentForm.birthday || undefined,
+      telephone: studentForm.telephone || undefined,
       weekday: studentForm.weekday,
       shiftId: studentForm.shiftId,
       isActive: studentForm.isActive,
