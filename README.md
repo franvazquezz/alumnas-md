@@ -195,6 +195,12 @@ de omitir pruebas. Ante fallos conserva el reporte, las trazas y capturas durant
 siete días. La ejecución local puede usar PostgreSQL 18; la ejecución real de
 GitHub Actions se verifica después de subir los cambios.
 
+Después del seed, `pnpm test:integration` comprueba autorización tRPC contra
+Prisma real. Sólo acepta una base PostgreSQL local descartable llamada
+`mdceramica_e2e` o `mdceramica_e2e_*`; nunca debe apuntarse a Vercel ni a una
+base compartida. CI también crea una invitación y ejecuta su aceptación completa
+en Playwright con correo, contraseña y token generados para esa única ejecución.
+
 ## Reglas de dominio
 
 - Los cumpleaños y días de clase se intercambian como `AAAA-MM-DD`; no deben

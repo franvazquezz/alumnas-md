@@ -18,7 +18,6 @@ jobs:
     timeout-minutes: 20
     env:
       DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/mdceramica_e2e
-      AUTH_SECRET: ci-only-secret-not-used-outside-the-test-run
 
     services:
       postgres:
@@ -77,14 +76,21 @@ jobs:
 
       - name: Generate ephemeral E2E credentials
         run: |
+          echo "AUTH_SECRET=$(openssl rand -hex 32)" >> "$GITHUB_ENV"
           for role in ADMIN STUDENT OWNER; do
             echo "E2E_${role}_EMAIL=${role,,}@e2e.example.com" >> "$GITHUB_ENV"
             echo "E2E_${role}_PASSWORD=$(openssl rand -hex 24)" >> "$GITHUB_ENV"
           done
           echo "E2E_ADMIN_STUDENT_ID=1" >> "$GITHUB_ENV"
+          echo "E2E_INVITED_EMAIL=invited@e2e.example.com" >> "$GITHUB_ENV"
+          echo "E2E_INVITED_PASSWORD=$(openssl rand -hex 24)" >> "$GITHUB_ENV"
+          echo "E2E_INVITATION_TOKEN=$(openssl rand -hex 32)" >> "$GITHUB_ENV"
 
       - name: Seed E2E fixtures
         run: pnpm test:e2e:seed
+
+      - name: Test tRPC and Prisma integration
+        run: pnpm test:integration
 
       - name: Install Chromium
         run: pnpm exec playwright install --with-deps chromium

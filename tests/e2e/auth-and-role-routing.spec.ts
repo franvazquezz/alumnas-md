@@ -18,6 +18,11 @@ const owner: Credentials = {
   password: process.env.E2E_OWNER_PASSWORD,
 };
 const adminStudentId = process.env.E2E_ADMIN_STUDENT_ID;
+const invited = {
+  email: process.env.E2E_INVITED_EMAIL,
+  password: process.env.E2E_INVITED_PASSWORD,
+  token: process.env.E2E_INVITATION_TOKEN,
+};
 
 const hasCredentials = (
   credentials: Credentials,
@@ -29,10 +34,13 @@ if (
   (!hasCredentials(admin) ||
     !hasCredentials(student) ||
     !hasCredentials(owner) ||
-    !adminStudentId)
+    !adminStudentId ||
+    !invited.email ||
+    !invited.password ||
+    !invited.token)
 ) {
   throw new Error(
-    "CI requiere las cuentas ADMIN, STUDENT y OWNER y E2E_ADMIN_STUDENT_ID; no se permite omitir cobertura de roles.",
+    "CI requiere cuentas por rol, ficha e invitación E2E; no se permite omitir cobertura crítica.",
   );
 }
 
@@ -259,5 +267,29 @@ test.describe("experiencia OWNER", () => {
         ),
       )
       .toBe(true);
+  });
+});
+
+test.describe("invitaciones", () => {
+  test.skip(
+    !invited.email || !invited.password || !invited.token,
+    "Define las variables E2E de invitación.",
+  );
+
+  test("crea una cuenta STUDENT y consume la invitación", async ({ page }) => {
+    if (!invited.email || !invited.password || !invited.token) return;
+
+    await page.goto(`/invite/${invited.token}`);
+    await expect(
+      page.getByRole("heading", { name: "Crear tu cuenta" }),
+    ).toBeVisible();
+    await expect(page.getByText(invited.email, { exact: false })).toBeVisible();
+    await page.getByLabel("Nombre").fill("Cuenta invitada E2E");
+    await page.getByLabel("Contraseña").fill(invited.password);
+    await page.getByRole("button", { name: "Crear cuenta" }).click();
+    await expect(page.getByText(/Cuenta creada/)).toBeVisible();
+
+    const consumed = await page.reload();
+    expect(consumed?.status()).toBe(404);
   });
 });

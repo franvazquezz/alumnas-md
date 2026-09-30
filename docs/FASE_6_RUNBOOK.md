@@ -29,6 +29,13 @@ La suite E2E incluye:
 - acceso positivo a la ficha vinculada y rechazo `NOT_FOUND` al solicitar la
   ficha de otra alumna directamente por tRPC;
 - salud de aplicación y propagación de `x-request-id`.
+- aceptación de una invitación STUDENT, creación de cuenta y rechazo de la
+  reutilización del token.
+
+La suite de integración usa la misma PostgreSQL descartable y llama a tRPC con
+sesiones reales de las fixtures. Comprueba el alcance por taller, la lectura de
+la ficha propia, el ocultamiento de otra ficha y el rechazo de mutaciones de
+STUDENT antes de escribir en Prisma.
 
 ## Observabilidad
 
@@ -61,7 +68,8 @@ cambio. La auditoría funcional no reemplaza los logs operativos.
 
 Antes de habilitar producción deben existir, en el proveedor elegido:
 
-1. secretos separados para producción y staging;
+1. secretos separados para producción y staging, administrados por el
+   proveedor y nunca reutilizados por CI;
 2. retención y búsqueda de logs JSON;
 3. un monitor HTTP sobre `/api/health` y alerta por respuestas `503`;
 4. alertas de tasa de error y latencia p95 de tRPC;

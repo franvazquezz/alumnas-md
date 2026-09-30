@@ -1,6 +1,7 @@
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "@prisma/client";
 import { hashPassword } from "../src/lib/auth/password";
+import { hashOpaqueToken } from "../src/lib/auth/tokens";
 
 // Deliberately do not load .env files: fixtures require an explicit disposable DB.
 const databaseUrl = process.env.DATABASE_URL;
@@ -37,6 +38,20 @@ const studentId = Number(process.env.E2E_ADMIN_STUDENT_ID);
 if (!Number.isSafeInteger(studentId) || studentId <= 0) {
   throw new Error("Define E2E_ADMIN_STUDENT_ID con un entero positivo.");
 }
+const invitedEmail = process.env.E2E_INVITED_EMAIL?.trim().toLowerCase();
+const invitedPassword = process.env.E2E_INVITED_PASSWORD;
+const invitationToken = process.env.E2E_INVITATION_TOKEN;
+if (
+  !invitedEmail ||
+  !invitedPassword ||
+  invitedPassword.length < 12 ||
+  !invitationToken ||
+  invitationToken.length < 32
+) {
+  throw new Error(
+    "Define E2E_INVITED_EMAIL, E2E_INVITED_PASSWORD y E2E_INVITATION_TOKEN para probar invitaciones.",
+  );
+}
 const db = new PrismaClient({
   adapter: new PrismaPg({ connectionString: databaseUrl }),
 });
@@ -61,6 +76,7 @@ try {
         },
         include: { shifts: true },
       });
+      let ownerId: string | undefined;
       for (const account of accounts) {
         const user = await tx.user.create({
           data: {
@@ -77,6 +93,7 @@ try {
             },
           },
         });
+        if (account.role === "OWNER") ownerId = user.id;
         if (account.role === "STUDENT") {
           await tx.student.create({
             data: {
@@ -132,12 +149,24 @@ try {
           });
         }
       }
+      if (!ownerId) throw new Error("No se pudo crear el OWNER E2E.");
+      await tx.invitation.create({
+        data: {
+          email: invitedEmail,
+          tokenHash: hashOpaqueToken(invitationToken),
+          role: "STUDENT",
+          studioId: studio.id,
+          studentId: studentId + 1,
+          invitedById: ownerId,
+          expiresAt: new Date(Date.now() + 60 * 60 * 1000),
+        },
+      });
       await tx.$executeRaw`SELECT setval(pg_get_serial_sequence('"Student"', 'id'), (SELECT MAX(id) FROM "Student"), true)`;
     },
     { timeout: 30_000 },
   );
   console.info(
-    "Fixtures E2E creadas: OWNER, ADMIN, STUDENT, dos fichas aisladas, taller, turnos, clase y cargos.",
+    "Fixtures E2E creadas: OWNER, ADMIN, STUDENT, invitación, dos fichas aisladas, taller, turnos, clase y cargos.",
   );
 } finally {
   await db.$disconnect();
