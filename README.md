@@ -32,8 +32,7 @@ pnpm install --frozen-lockfile
 
 ## Configuración local
 
-Copiar el archivo de ejemplo y completar una URL de PostgreSQL local. Nunca se
-debe usar la base de producción para desarrollo o pruebas.
+Copiar el archivo de ejemplo y completar una URL de PostgreSQL local. Nunca usar la base de producción para desarrollo o pruebas.
 
 ```bash
 cp .env.example .env.local
