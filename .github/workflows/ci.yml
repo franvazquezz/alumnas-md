@@ -15,10 +15,25 @@ permissions:
 jobs:
   verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     env:
-      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/mdceramica_ci
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/mdceramica_e2e
       AUTH_SECRET: ci-only-secret-not-used-outside-the-test-run
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: mdceramica_e2e
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d mdceramica_e2e"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
 
     steps:
       - name: Checkout repository
@@ -56,3 +71,33 @@ jobs:
 
       - name: Verify generated CSS theme
         run: pnpm verify:css-theme
+
+      - name: Prepare disposable E2E database
+        run: pnpm db:migrate
+
+      - name: Generate ephemeral E2E credentials
+        run: |
+          for role in ADMIN STUDENT OWNER; do
+            echo "E2E_${role}_EMAIL=${role,,}@e2e.example.com" >> "$GITHUB_ENV"
+            echo "E2E_${role}_PASSWORD=$(openssl rand -hex 24)" >> "$GITHUB_ENV"
+          done
+          echo "E2E_ADMIN_STUDENT_ID=1" >> "$GITHUB_ENV"
+
+      - name: Seed E2E fixtures
+        run: pnpm test:e2e:seed
+
+      - name: Install Chromium
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Test browser flows
+        run: pnpm test:e2e
+
+      - name: Upload E2E failure evidence
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-results
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7

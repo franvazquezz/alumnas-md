@@ -1,3 +1,5 @@
+import { StudentFields } from "./student-fields";
+import { QueryState } from "./query-state";
 import { useState } from "react";
 import type { FormEvent } from "react";
 import { LuSave } from "react-icons/lu";
@@ -7,8 +9,8 @@ import { type Student } from "~/types/utils";
 import { showNotification } from "@mantine/notifications";
 import { formatCalendarDate } from "~/lib/domain/calendar-date";
 import { formatMoney } from "~/lib/domain/money";
-import type { StudentFormState, WeekdayOption } from "~/types/students";
-import { getWeekday, WEEK_DAYS } from "~/types/utils";
+import type { StudentFormState } from "~/types/students";
+import { getWeekday } from "~/types/utils";
 
 export const StudentPersonalDetail = ({ data }: { data: Student }) => {
   const studentId = data.id;
@@ -23,13 +25,16 @@ export const StudentPersonalDetail = ({ data }: { data: Student }) => {
   const [showEditDetails, setShowEditDetails] = useState(false);
 
   const utils = api.useUtils();
-  const { data: shifts } = api.students.formOptions.useQuery(undefined, {
+  const shiftsQuery = api.students.formOptions.useQuery(undefined, {
     refetchOnWindowFocus: false,
   });
   const updateStudent = api.students.update.useMutation({
     onSuccess: async () => {
-      await utils.students.byId.invalidate({ id: studentId });
-      await utils.students.list.invalidate();
+      await Promise.all([
+        utils.students.byId.invalidate({ id: studentId }),
+        utils.students.list.invalidate(),
+      ]);
+      setShowEditDetails(false);
       showNotification({ color: "green", message: "Alumno actualizado" });
     },
     onError: () =>
@@ -73,7 +78,18 @@ export const StudentPersonalDetail = ({ data }: { data: Student }) => {
         <ButtonM
           type="button"
           variant="ghost"
-          onClick={() => setShowEditDetails((prev) => !prev)}
+          onClick={() => {
+            if (!showEditDetails)
+              setForm({
+                name: data.name ?? "",
+                birthday: data.birthday ?? "",
+                telephone: data.telephone ?? "",
+                weekday: data.weekday,
+                shiftId: data.shiftId,
+                isActive: data.isActive,
+              });
+            setShowEditDetails((prev) => !prev);
+          }}
         >
           {showEditDetails ? "Ocultar edición" : "Editar alumno"}
         </ButtonM>
@@ -100,85 +116,39 @@ export const StudentPersonalDetail = ({ data }: { data: Student }) => {
       </div>
 
       {showEditDetails ? (
-        <form
-          className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2"
-          onSubmit={handleSaveStudent}
-        >
-          <input
-            required
-            value={form.name}
-            onChange={(e) => setForm({ ...form, name: e.target.value })}
-            placeholder="Nombre completo"
-            className="border-plum/20 text-ink ring-primary/20 rounded-xl border bg-white px-4 py-2 text-sm transition outline-none focus:ring-2"
+        shiftsQuery.isLoading ? (
+          <QueryState
+            compact
+            kind="loading"
+            title="Cargando formulario"
+            description="Estamos obteniendo los turnos disponibles."
           />
-          <input
-            type="date"
-            value={form.birthday}
-            onChange={(e) => setForm({ ...form, birthday: e.target.value })}
-            className="border-plum/20 text-ink ring-primary/20 rounded-xl border bg-white px-4 py-2 text-sm transition outline-none focus:ring-2"
+        ) : shiftsQuery.isError ? (
+          <QueryState
+            compact
+            kind="error"
+            title="No pudimos cargar los turnos"
+            description="Reintenta antes de editar el alumno."
+            onRetry={() => void shiftsQuery.refetch()}
           />
-          <input
-            value={form.telephone}
-            onChange={(e) => setForm({ ...form, telephone: e.target.value })}
-            placeholder="Teléfono"
-            className="border-plum/20 text-ink ring-primary/20 rounded-xl border bg-white px-4 py-2 text-sm transition outline-none focus:ring-2"
-          />
-          <select
-            value={form.weekday ?? ""}
-            onChange={(e) =>
-              setForm({
-                ...form,
-                weekday: (e.target.value || null) as WeekdayOption | null,
-              })
-            }
-            className="border-plum/20 text-ink ring-primary/20 rounded-xl border bg-white px-4 py-2 text-sm transition outline-none focus:ring-2"
+        ) : (
+          <form
+            className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2"
+            onSubmit={handleSaveStudent}
           >
-            <option value="">Sin día asignado</option>
-            {WEEK_DAYS.map((day) => (
-              <option key={day.value} value={day.value}>
-                {day.label}
-              </option>
-            ))}
-          </select>
-          <select
-            value={form.shiftId ?? ""}
-            onChange={(e) =>
-              setForm({
-                ...form,
-                shiftId: e.target.value ? Number(e.target.value) : null,
-              })
-            }
-            className="border-plum/20 text-ink ring-primary/20 rounded-xl border bg-white px-4 py-2 text-sm transition outline-none focus:ring-2"
-          >
-            <option value="">Seleccionar horario</option>
-            {shifts?.map((shift) => (
-              <option
-                key={shift.id}
-                value={shift.id}
-                disabled={!shift.isActive && shift.id !== form.shiftId}
-              >
-                {shift.startTime}
-                {shift.label ? ` · ${shift.label}` : ""}
-                {!shift.isActive ? " · inactivo" : ""}
-              </option>
-            ))}
-          </select>
-          <label className="text-plum flex items-center gap-2 text-sm">
-            <input
-              type="checkbox"
-              checked={form.isActive}
-              onChange={(e) => setForm({ ...form, isActive: e.target.checked })}
-              className="border-plum/30 text-primary focus:ring-primary h-4 w-4 rounded"
+            <StudentFields
+              form={form}
+              onChange={setForm}
+              shifts={shiftsQuery.data ?? []}
             />
-            Alumno activo
-          </label>
-          <div className="flex justify-end md:col-span-2">
-            <ButtonM type="submit" loading={updateStudent.isPending}>
-              <LuSave className="h-4 w-4" />
-              Guardar alumno
-            </ButtonM>
-          </div>
-        </form>
+            <div className="flex justify-end md:col-span-2">
+              <ButtonM type="submit" loading={updateStudent.isPending}>
+                <LuSave className="h-4 w-4" />
+                Guardar alumno
+              </ButtonM>
+            </div>
+          </form>
+        )
       ) : (
         <div className="mt-4 grid grid-cols-1 gap-2 text-sm md:grid-cols-2">
           <p className="text-plum/80">

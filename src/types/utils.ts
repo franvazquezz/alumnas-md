@@ -1,9 +1,5 @@
 import { type RouterOutputs } from "~/trpc/react";
-import {
-  type ClassFormState,
-  type StudentFormState,
-  type WeekdayOption,
-} from "./students";
+import { type StudentFormState, type WeekdayOption } from "./students";
 
 export const WEEK_DAYS = [
   { value: "MONDAY", label: "Lunes" },
@@ -36,21 +32,6 @@ export const emptyStudent: StudentFormState = {
   weekday: null,
   shiftId: null,
   isActive: true,
-};
-
-export const emptyClassDraft: ClassFormState = {
-  className: "",
-  classPrice: "",
-  classDay: "",
-  classPaymentStatus: "PENDING",
-  monthId: null,
-  assistance: false,
-  ovenName: "",
-  ovenPrice: "",
-  ovenPaymentStatus: "PENDING",
-  materialName: "",
-  materialPrice: "",
-  materialPaymentStatus: "PENDING",
 };
 
 export type Student = RouterOutputs["students"]["list"][number];

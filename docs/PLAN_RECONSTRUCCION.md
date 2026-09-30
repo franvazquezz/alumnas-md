@@ -256,14 +256,15 @@ Una ruta protegida mejora la experiencia, pero no reemplaza la autorización del
 
 ## 8. Fase 5 — Separación de experiencias
 
-**Estado:** en curso desde el 9 de septiembre de 2026. La primera entrega
-incorpora el portal STUDENT compartido y las rutas `/mi-cuenta`, `/mis-clases` y
-`/mis-pagos`, siempre resueltas desde la identidad y el taller activo de la
-sesión. La segunda entrega divide la ficha administrativa de estudiante por
-responsabilidad, comparte los campos de clase y elimina el ciclo de imports del
-botón. La tercera incorpora estados compartidos de carga, error y vacío, además
-de una suite Playwright para acceso anónimo, ADMIN y STUDENT. Pasan la
-validación local de roles, `pnpm check` y el build con Node.js 20.
+**Estado:** refactor de interfaz completado localmente y documentado el 11 de
+septiembre de 2026. El portal STUDENT resuelve `/mi-cuenta`, `/mis-clases` y
+`/mis-pagos` desde la identidad y el taller activo. La ficha administrativa está
+dividida por responsabilidad y comparte campos de clases y alumnas. Los
+formularios de talleres también comparten campos; turnos, usuarios y
+asignaciones tienen etiquetas accesibles. Se retiró el código de clases sin uso.
+Pasan ocho E2E sin reintentos, `pnpm check` (19 pruebas), build y control de CSS.
+Las fixtures y PostgreSQL descartable están integrados al workflow; falta
+comprobar la ejecución real en GitHub Actions después de subir los cambios.
 
 ### Panel administrativo
 
@@ -291,10 +292,10 @@ validación local de roles, `pnpm check` y el build con Node.js 20.
 4. Corregir etiquetas, semántica, `lang="es"` y enlaces dentro de botones.
 5. Añadir estados de carga, error y vacío consistentes.
 
-Los puntos 1, 2 y 5 están completos en las superficies principales. El punto 3
-está aplicado a la ficha de estudiante y continúa para el resto del panel. El
-punto 4 ya corrigió idioma, búsqueda, alta, eliminación y el enlace de detalle;
-continúa en los formularios avanzados de administración.
+Los cinco puntos del refactor están completos en las superficies existentes.
+El runbook de fase 5 registra la evidencia de roles, formularios, descarte de
+borradores y ancho móvil. El portal del estudiante continúa siendo de consulta;
+las mutaciones de pagos requieren una decisión operativa posterior.
 
 ## 9. Fase 6 — Pruebas, observabilidad y despliegue
 
@@ -320,6 +321,18 @@ continúa en los formularios avanzados de administración.
 - El despliegue aplica migraciones de forma controlada.
 - Existe rollback documentado.
 - Los flujos críticos tienen evidencia end-to-end.
+
+### Avance al 11 de septiembre de 2026
+
+La primera entrega de fase 6 incorpora logs JSON correlacionados por
+`x-request-id`, identidad y taller; duración, resultado y código de error de cada
+procedimiento tRPC; y un endpoint `/api/health` que valida PostgreSQL sin filtrar
+detalles internos. Las fixtures ahora incluyen una segunda ficha y el E2E prueba
+que STUDENT recibe `NOT_FOUND` al consultarla directamente, además de validar su
+propia ficha. `docs/FASE_6_RUNBOOK.md` define respaldo, despliegue, verificación
+y rollback. Quedan pendientes la ejecución real en GitHub Actions, la elección
+del proveedor, alertas, respaldos automáticos y la prueba sobre una copia
+anonimizada.
 
 ## 10. Matriz inicial de permisos
 

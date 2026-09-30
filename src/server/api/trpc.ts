@@ -13,6 +13,7 @@ import { ZodError } from "zod";
 import { db } from "~/server/db";
 import { auth } from "~/auth";
 import { canManageStudio } from "~/lib/auth/permissions";
+import { resolveRequestId, writeServerLog } from "~/server/observability";
 
 /**
  * 1. CONTEXT
@@ -26,12 +27,16 @@ import { canManageStudio } from "~/lib/auth/permissions";
  *
  * @see https://trpc.io/docs/server/context
  */
-export const createTRPCContext = async (opts: { headers: Headers }) => {
+export const createTRPCContext = async (opts: {
+  headers: Headers;
+  requestId?: string;
+}) => {
   const session = await auth();
   return {
     db,
     session,
     ...opts,
+    requestId: opts.requestId ?? resolveRequestId(opts.headers),
   };
 };
 
@@ -83,7 +88,7 @@ export const createTRPCRouter = t.router;
  * You can remove this if you don't like it, but it can help catch unwanted waterfalls by simulating
  * network latency that would occur in production but not in local development.
  */
-const timingMiddleware = t.middleware(async ({ next, path }) => {
+const timingMiddleware = t.middleware(async ({ ctx, next, path, type }) => {
   const start = Date.now();
 
   if (t._config.isDev) {
@@ -93,9 +98,23 @@ const timingMiddleware = t.middleware(async ({ next, path }) => {
   }
 
   const result = await next();
-
-  const end = Date.now();
-  console.log(`[TRPC] ${path} took ${end - start}ms to execute`);
+  const durationMs = Date.now() - start;
+  const errorCode = result.ok ? undefined : result.error.code;
+  const level =
+    !result.ok && result.error.code === "INTERNAL_SERVER_ERROR"
+      ? "error"
+      : "info";
+  writeServerLog(level, "trpc.procedure.completed", {
+    requestId: ctx.requestId,
+    userId: ctx.session?.user.id ?? null,
+    studioId: ctx.session?.user.studioId ?? null,
+    role: ctx.session?.user.role ?? null,
+    procedure: path,
+    procedureType: type,
+    durationMs,
+    ok: result.ok,
+    errorCode,
+  });
 
   return result;
 });

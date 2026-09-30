@@ -1,8 +1,9 @@
 "use client";
 
+import { StudioFields } from "./studio-fields";
 import Link from "next/link";
 import { notifications } from "@mantine/notifications";
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { LuArrowLeft, LuPlus, LuSave, LuTrash2 } from "react-icons/lu";
 
 import { AccountActions } from "~/app/_components/account-actions";
@@ -103,42 +104,10 @@ function CurrentStudioSettings({ overview }: { overview: Overview }) {
         update.mutate(form);
       }}
     >
-      <input
-        required
-        className={inputClass}
-        value={form.name}
-        onChange={(event) => setForm({ ...form, name: event.target.value })}
-        placeholder="Nombre del taller"
-      />
-      <input
-        required
-        className={inputClass}
-        value={form.slug}
-        onChange={(event) => setForm({ ...form, slug: event.target.value })}
-        placeholder="identificador-del-taller"
-      />
-      <input
-        className={inputClass}
-        value={form.address}
-        onChange={(event) => setForm({ ...form, address: event.target.value })}
-        placeholder="Dirección"
-      />
-      <input
-        className={inputClass}
-        value={form.telephone}
-        onChange={(event) =>
-          setForm({ ...form, telephone: event.target.value })
-        }
-        placeholder="Teléfono"
-      />
-      <textarea
-        className={`${inputClass} md:col-span-2`}
-        value={form.description}
-        onChange={(event) =>
-          setForm({ ...form, description: event.target.value })
-        }
-        placeholder="Descripción"
-        rows={3}
+      <StudioFields
+        form={form}
+        onChange={(patch) => setForm({ ...form, ...patch })}
+        requireSlug={true}
       />
       <div className="flex justify-end md:col-span-2">
         <ButtonM type="submit" loading={update.isPending}>
@@ -177,30 +146,38 @@ function ShiftRow({ shift }: { shift: Shift }) {
 
   return (
     <div className="border-plum/15 grid gap-2 rounded-2xl border bg-white/70 p-3 md:grid-cols-[120px_1fr_80px_auto_auto] md:items-center">
-      <input
-        type="time"
-        className={inputClass}
-        value={form.startTime}
-        onChange={(event) =>
-          setForm({ ...form, startTime: event.target.value })
-        }
-      />
-      <input
-        className={inputClass}
-        value={form.label}
-        onChange={(event) => setForm({ ...form, label: event.target.value })}
-        placeholder="Etiqueta opcional"
-      />
-      <input
-        type="number"
-        min={0}
-        className={inputClass}
-        value={form.sortOrder}
-        onChange={(event) =>
-          setForm({ ...form, sortOrder: Number(event.target.value) })
-        }
-        aria-label="Orden"
-      />
+      <label className="text-plum grid min-w-0 gap-1 text-sm font-semibold">
+        Hora de inicio
+        <input
+          type="time"
+          className={inputClass}
+          value={form.startTime}
+          onChange={(event) =>
+            setForm({ ...form, startTime: event.target.value })
+          }
+        />
+      </label>
+      <label className="text-plum grid min-w-0 gap-1 text-sm font-semibold">
+        Etiqueta del turno
+        <input
+          className={inputClass}
+          value={form.label}
+          onChange={(event) => setForm({ ...form, label: event.target.value })}
+          placeholder="Etiqueta opcional"
+        />
+      </label>
+      <label className="text-plum grid min-w-0 gap-1 text-sm font-semibold">
+        Orden
+        <input
+          type="number"
+          min={0}
+          className={inputClass}
+          value={form.sortOrder}
+          onChange={(event) =>
+            setForm({ ...form, sortOrder: Number(event.target.value) })
+          }
+        />
+      </label>
       <label className="text-plum flex items-center gap-2 text-sm">
         <input
           type="checkbox"
@@ -215,6 +192,7 @@ function ShiftRow({ shift }: { shift: Shift }) {
         <ButtonM
           type="button"
           loading={update.isPending}
+          aria-label={`Guardar turno ${shift.startTime}`}
           onClick={() => update.mutate({ id: shift.id, ...form })}
         >
           <LuSave className="h-4 w-4" />
@@ -223,6 +201,7 @@ function ShiftRow({ shift }: { shift: Shift }) {
           type="button"
           variant="danger"
           loading={remove.isPending}
+          aria-label={`Eliminar turno ${shift.startTime}`}
           onClick={() => remove.mutate({ id: shift.id })}
         >
           <LuTrash2 className="h-4 w-4" />
@@ -269,19 +248,25 @@ function ShiftSettings({ shifts }: { shifts: Shift[] }) {
           create.mutate({ startTime, label, sortOrder: shifts.length });
         }}
       >
-        <input
-          required
-          type="time"
-          className={inputClass}
-          value={startTime}
-          onChange={(event) => setStartTime(event.target.value)}
-        />
-        <input
-          className={inputClass}
-          value={label}
-          onChange={(event) => setLabel(event.target.value)}
-          placeholder="Etiqueta opcional (por ejemplo, Mañana)"
-        />
+        <label className="text-plum grid min-w-0 gap-1 text-sm font-semibold">
+          Hora del nuevo turno
+          <input
+            required
+            type="time"
+            className={inputClass}
+            value={startTime}
+            onChange={(event) => setStartTime(event.target.value)}
+          />
+        </label>
+        <label className="text-plum grid min-w-0 gap-1 text-sm font-semibold">
+          Etiqueta del nuevo turno
+          <input
+            className={inputClass}
+            value={label}
+            onChange={(event) => setLabel(event.target.value)}
+            placeholder="Etiqueta opcional (por ejemplo, Mañana)"
+          />
+        </label>
         <ButtonM type="submit" loading={create.isPending}>
           <LuPlus className="h-4 w-4" /> Agregar turno
         </ButtonM>
@@ -320,35 +305,10 @@ function StudioCard({ studio }: { studio: Studio }) {
         update.mutate(form);
       }}
     >
-      <input
-        required
-        className={inputClass}
-        value={form.name}
-        onChange={(e) => setForm({ ...form, name: e.target.value })}
-      />
-      <input
-        required
-        className={inputClass}
-        value={form.slug}
-        onChange={(e) => setForm({ ...form, slug: e.target.value })}
-      />
-      <input
-        className={inputClass}
-        value={form.address}
-        onChange={(e) => setForm({ ...form, address: e.target.value })}
-        placeholder="Dirección"
-      />
-      <input
-        className={inputClass}
-        value={form.telephone}
-        onChange={(e) => setForm({ ...form, telephone: e.target.value })}
-        placeholder="Teléfono"
-      />
-      <textarea
-        className={`${inputClass} md:col-span-2`}
-        value={form.description}
-        onChange={(e) => setForm({ ...form, description: e.target.value })}
-        placeholder="Descripción"
+      <StudioFields
+        form={form}
+        onChange={(patch) => setForm({ ...form, ...patch })}
+        requireSlug={true}
       />
       <div className="text-plum/70 text-xs md:col-span-2">
         {studio._count.students} alumnos · {studio._count.memberships} usuarios
@@ -410,36 +370,10 @@ function StudiosCrud({ studios }: { studios: Studio[] }) {
           create.mutate(form);
         }}
       >
-        <input
-          required
-          className={inputClass}
-          value={form.name}
-          onChange={(e) => setForm({ ...form, name: e.target.value })}
-          placeholder="Nombre del nuevo taller"
-        />
-        <input
-          className={inputClass}
-          value={form.slug}
-          onChange={(e) => setForm({ ...form, slug: e.target.value })}
-          placeholder="Slug (se genera si queda vacío)"
-        />
-        <input
-          className={inputClass}
-          value={form.address}
-          onChange={(e) => setForm({ ...form, address: e.target.value })}
-          placeholder="Dirección"
-        />
-        <input
-          className={inputClass}
-          value={form.telephone}
-          onChange={(e) => setForm({ ...form, telephone: e.target.value })}
-          placeholder="Teléfono"
-        />
-        <textarea
-          className={`${inputClass} md:col-span-2`}
-          value={form.description}
-          onChange={(e) => setForm({ ...form, description: e.target.value })}
-          placeholder="Descripción"
+        <StudioFields
+          form={form}
+          onChange={(patch) => setForm({ ...form, ...patch })}
+          requireSlug={false}
         />
         <div className="flex justify-end md:col-span-2">
           <ButtonM type="submit" loading={create.isPending}>
@@ -474,6 +408,7 @@ function UserCard({
   students: Student[];
 }) {
   const utils = api.useUtils();
+  const fieldId = useId();
   const [name, setName] = useState(user.name ?? "");
   const [isPlatformAdmin, setIsPlatformAdmin] = useState(user.isPlatformAdmin);
   const [studioId, setStudioId] = useState<number | null>(
@@ -517,12 +452,15 @@ function UserCard({
         </p>
       </div>
       <div className="grid gap-2 md:grid-cols-[1fr_auto_auto] md:items-center">
-        <input
-          className={inputClass}
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="Nombre"
-        />
+        <label className="text-plum grid min-w-0 gap-1 text-sm font-semibold">
+          Nombre del usuario
+          <input
+            className={inputClass}
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="Nombre"
+          />
+        </label>
         <label className="text-plum flex items-center gap-2 text-sm">
           <input
             type="checkbox"
@@ -534,6 +472,7 @@ function UserCard({
         <ButtonM
           type="button"
           loading={update.isPending}
+          aria-label={`Guardar usuario ${user.email}`}
           onClick={() =>
             update.mutate({ userId: user.id, name, isPlatformAdmin })
           }
@@ -554,6 +493,7 @@ function UserCard({
               type="button"
               variant="danger"
               loading={remove.isPending}
+              aria-label={`Quitar acceso de ${user.email} a ${membership.studio.name}`}
               onClick={() =>
                 remove.mutate({
                   userId: user.id,
@@ -567,53 +507,65 @@ function UserCard({
         ))}
       </div>
       <div className="grid gap-2 md:grid-cols-[1fr_1fr_1fr_auto]">
-        <select
-          className={inputClass}
-          value={studioId ?? ""}
-          onChange={(e) => {
-            setStudioId(e.target.value ? Number(e.target.value) : null);
-            setStudentId(null);
-          }}
-        >
-          <option value="">Taller</option>
-          {studios
-            .filter((studio) => studio.isActive)
-            .map((studio) => (
-              <option key={studio.id} value={studio.id}>
-                {studio.name}
-              </option>
-            ))}
-        </select>
-        <select
-          className={inputClass}
-          value={role}
-          onChange={(e) => {
-            setRole(e.target.value as Role);
-            setStudentId(null);
-          }}
-        >
-          {(Object.keys(roleLabel) as Role[]).map((value) => (
-            <option key={value} value={value}>
-              {roleLabel[value]}
-            </option>
-          ))}
-        </select>
-        {role === "STUDENT" ? (
+        <div className="text-plum grid min-w-0 gap-1 text-sm font-semibold">
+          <label htmlFor={`${fieldId}-1`}>Taller</label>
           <select
-            required
+            id={`${fieldId}-1`}
             className={inputClass}
-            value={studentId ?? ""}
-            onChange={(e) =>
-              setStudentId(e.target.value ? Number(e.target.value) : null)
-            }
+            value={studioId ?? ""}
+            onChange={(e) => {
+              setStudioId(e.target.value ? Number(e.target.value) : null);
+              setStudentId(null);
+            }}
           >
-            <option value="">Ficha del alumno</option>
-            {available.map((student) => (
-              <option key={student.id} value={student.id}>
-                {student.name}
+            <option value="">Taller</option>
+            {studios
+              .filter((studio) => studio.isActive)
+              .map((studio) => (
+                <option key={studio.id} value={studio.id}>
+                  {studio.name}
+                </option>
+              ))}
+          </select>
+        </div>
+        <div className="text-plum grid min-w-0 gap-1 text-sm font-semibold">
+          <label htmlFor={`${fieldId}-2`}>Rol</label>
+          <select
+            id={`${fieldId}-2`}
+            className={inputClass}
+            value={role}
+            onChange={(e) => {
+              setRole(e.target.value as Role);
+              setStudentId(null);
+            }}
+          >
+            {(Object.keys(roleLabel) as Role[]).map((value) => (
+              <option key={value} value={value}>
+                {roleLabel[value]}
               </option>
             ))}
           </select>
+        </div>
+        {role === "STUDENT" ? (
+          <div className="text-plum grid min-w-0 gap-1 text-sm font-semibold">
+            <label htmlFor={`${fieldId}-3`}>Ficha del alumno</label>
+            <select
+              id={`${fieldId}-3`}
+              required
+              className={inputClass}
+              value={studentId ?? ""}
+              onChange={(e) =>
+                setStudentId(e.target.value ? Number(e.target.value) : null)
+              }
+            >
+              <option value="">Ficha del alumno</option>
+              {available.map((student) => (
+                <option key={student.id} value={student.id}>
+                  {student.name}
+                </option>
+              ))}
+            </select>
+          </div>
         ) : (
           <span />
         )}

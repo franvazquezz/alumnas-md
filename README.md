@@ -103,6 +103,10 @@ documentadas en `docs/FASE_4_RUNBOOK.md`.
 El portal del estudiante y el avance de la separación de experiencias se
 documentan en `docs/FASE_5_RUNBOOK.md`.
 
+Las pruebas, la correlación de solicitudes, el endpoint de salud y el
+procedimiento de despliegue/rollback se documentan en
+`docs/FASE_6_RUNBOOK.md`.
+
 ## Migraciones
 
 El directorio `prisma/migrations` es la fuente de verdad del esquema. Cada
@@ -156,12 +160,11 @@ pnpm test:e2e:install
 
 `pnpm check` ejecuta formato, ESLint, TypeScript y las pruebas unitarias de
 fechas, dinero y agenda. GitHub Actions repite esas verificaciones, el build y
-el control del tema CSS generado con Node.js 20 en cada pull request y push a
+el control del tema CSS generado y los E2E con Node.js 20 en cada pull request y push a
 `main`.
 
-Las pruebas E2E levantan un servidor local aislado y requieren cuentas QA ya
-creadas en la base local. Las credenciales se pasan por variables y nunca se
-versionan:
+Las pruebas E2E levantan un servidor local aislado y requieren cuentas QA.
+Las credenciales se pasan por variables y nunca se versionan:
 
 ```bash
 E2E_ADMIN_EMAIL="..." \
@@ -169,12 +172,28 @@ E2E_ADMIN_PASSWORD="..." \
 E2E_ADMIN_STUDENT_ID="..." \
 E2E_STUDENT_EMAIL="..." \
 E2E_STUDENT_PASSWORD="..." \
+E2E_OWNER_EMAIL="..." \
+E2E_OWNER_PASSWORD="..." \
 pnpm test:e2e
 ```
 
 Si `E2E_BASE_URL` no está definido, Playwright inicia Next.js en el puerto
 `3000`. La suite sólo consulta datos: valida acceso, roles, estados de interfaz
 y navegación sin crear, editar ni eliminar registros.
+
+Para crear las fixtures desde cero, prepara una base PostgreSQL **descartable**
+local llamada `mdceramica_e2e` (o `mdceramica_e2e_*`). Exporta `DATABASE_URL`,
+las seis variables de cuentas anteriores y `E2E_ADMIN_STUDENT_ID=1`; después
+ejecuta `pnpm db:migrate` y `pnpm test:e2e:seed`. El seed no carga archivos
+`.env`, rechaza conexiones remotas, parámetros de conexión y bases que ya
+tengan usuarios o alumnos. Crea un taller, dos turnos, tres cuentas, una ficha,
+una clase y dos cargos ficticios. No debe ejecutarse sobre la copia del taller.
+
+CI hace esta preparación automáticamente con PostgreSQL 16, genera contraseñas
+efímeras e instala Chromium. Falla si faltan las variables de algún rol en vez
+de omitir pruebas. Ante fallos conserva el reporte, las trazas y capturas durante
+siete días. La ejecución local puede usar PostgreSQL 18; la ejecución real de
+GitHub Actions se verifica después de subir los cambios.
 
 ## Reglas de dominio
 
@@ -191,6 +210,10 @@ El procedimiento de aplicación y control de la fase 2 está en
 `docs/FASE_2_RUNBOOK.md`.
 
 ## Despliegue
+
+El despliegue público continúa pausado. Antes de habilitarlo se debe completar
+la lista operativa de `docs/FASE_6_RUNBOOK.md`, incluido un respaldo restaurado
+con éxito en una base nueva.
 
 1. Configurar `DATABASE_URL` como secreto del entorno, apuntando a la base
    correspondiente.

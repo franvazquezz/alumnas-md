@@ -3,8 +3,8 @@ import { LuPlus } from "react-icons/lu";
 import { ButtonM } from "./button";
 import { api } from "~/trpc/react";
 import { showNotification } from "@mantine/notifications";
-import { emptyStudent, WEEK_DAYS } from "~/types/utils";
-import type { WeekdayOption } from "~/types/students";
+import { emptyStudent } from "~/types/utils";
+import { StudentFields } from "./student-fields";
 import { QueryState } from "./query-state";
 
 export const RegisterSection = () => {
@@ -80,88 +80,11 @@ export const RegisterSection = () => {
             className="grid grid-cols-1 gap-3 sm:grid-cols-2"
             onSubmit={handleCreateStudent}
           >
-            <label className="sr-only" htmlFor="student-name">
-              Nombre completo
-            </label>
-            <input
-              id="student-name"
-              required
-              value={studentForm.name}
-              onChange={(e) =>
-                setStudentForm({ ...studentForm, name: e.target.value })
-              }
-              placeholder="Nombre completo"
-              className="border-plum/20 text-ink ring-primary/20 rounded-xl border bg-white/80 px-4 py-2 text-sm transition outline-none focus:ring-2"
+            <StudentFields
+              form={studentForm}
+              onChange={setStudentForm}
+              shifts={shiftsQuery.data?.filter((shift) => shift.isActive) ?? []}
             />
-            <label className="sr-only" htmlFor="student-birthday">
-              Cumpleaños
-            </label>
-            <input
-              id="student-birthday"
-              type="date"
-              value={studentForm.birthday}
-              onChange={(e) =>
-                setStudentForm({ ...studentForm, birthday: e.target.value })
-              }
-              className="border-plum/20 text-ink ring-primary/20 rounded-xl border bg-white/80 px-4 py-2 text-sm transition outline-none focus:ring-2"
-            />
-            <label className="sr-only" htmlFor="student-telephone">
-              Teléfono
-            </label>
-            <input
-              id="student-telephone"
-              value={studentForm.telephone}
-              onChange={(e) =>
-                setStudentForm({ ...studentForm, telephone: e.target.value })
-              }
-              placeholder="Teléfono"
-              className="border-plum/20 text-ink ring-primary/20 rounded-xl border bg-white/80 px-4 py-2 text-sm transition outline-none focus:ring-2"
-            />
-            <label className="sr-only" htmlFor="student-weekday">
-              Día preferido
-            </label>
-            <select
-              id="student-weekday"
-              value={studentForm.weekday ?? ""}
-              onChange={(e) =>
-                setStudentForm({
-                  ...studentForm,
-                  weekday: (e.target.value || null) as WeekdayOption | null,
-                })
-              }
-              className="border-plum/20 text-ink ring-primary/20 rounded-xl border bg-white/80 px-4 py-2 text-sm transition outline-none focus:ring-2"
-            >
-              <option value="">Seleccionar día</option>
-              {WEEK_DAYS.map((day) => (
-                <option key={day.value} value={day.value}>
-                  {day.label}
-                </option>
-              ))}
-            </select>
-            <label className="sr-only" htmlFor="student-shift">
-              Horario
-            </label>
-            <select
-              id="student-shift"
-              value={studentForm.shiftId ?? ""}
-              onChange={(e) =>
-                setStudentForm({
-                  ...studentForm,
-                  shiftId: e.target.value ? Number(e.target.value) : null,
-                })
-              }
-              className="border-plum/20 text-ink ring-primary/20 rounded-xl border bg-white/80 px-4 py-2 text-sm transition outline-none focus:ring-2"
-            >
-              <option value="">Seleccionar horario</option>
-              {shiftsQuery.data
-                ?.filter((shift) => shift.isActive)
-                .map((shift) => (
-                  <option key={shift.id} value={shift.id}>
-                    {shift.startTime}
-                    {shift.label ? ` · ${shift.label}` : ""}
-                  </option>
-                ))}
-            </select>
             <div className="flex items-center justify-end sm:col-span-2">
               <ButtonM type="submit" loading={createStudent.isPending}>
                 <LuPlus className="h-4 w-4" />

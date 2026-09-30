@@ -13,12 +13,28 @@ const student: Credentials = {
   email: process.env.E2E_STUDENT_EMAIL,
   password: process.env.E2E_STUDENT_PASSWORD,
 };
+const owner: Credentials = {
+  email: process.env.E2E_OWNER_EMAIL,
+  password: process.env.E2E_OWNER_PASSWORD,
+};
 const adminStudentId = process.env.E2E_ADMIN_STUDENT_ID;
 
 const hasCredentials = (
   credentials: Credentials,
 ): credentials is Required<Credentials> =>
   Boolean(credentials.email && credentials.password);
+
+if (
+  process.env.CI &&
+  (!hasCredentials(admin) ||
+    !hasCredentials(student) ||
+    !hasCredentials(owner) ||
+    !adminStudentId)
+) {
+  throw new Error(
+    "CI requiere las cuentas ADMIN, STUDENT y OWNER y E2E_ADMIN_STUDENT_ID; no se permite omitir cobertura de roles.",
+  );
+}
 
 async function login(page: Page, credentials: Required<Credentials>) {
   await page.goto("/login");
@@ -27,6 +43,20 @@ async function login(page: Page, credentials: Required<Credentials>) {
   await page.getByRole("button", { name: "Ingresar" }).click();
   await expect(page).not.toHaveURL(/\/login(?:\?|$)/, { timeout: 30_000 });
 }
+
+const trpcInput = (input: unknown) =>
+  encodeURIComponent(JSON.stringify({ json: input }));
+
+test("expone salud de aplicación y correlación sin autenticación", async ({
+  request,
+}) => {
+  const response = await request.get("/api/health", {
+    headers: { "x-request-id": "e2e-health-check" },
+  });
+  expect(response.status()).toBe(200);
+  expect(response.headers()["x-request-id"]).toBe("e2e-health-check");
+  await expect(response.json()).resolves.toEqual({ status: "ok" });
+});
 
 test.describe("rutas privadas sin sesión", () => {
   for (const route of ["/", "/admin", "/students/1"]) {
@@ -56,7 +86,7 @@ test.describe("experiencia ADMIN", () => {
     await page.getByLabel("Buscar alumno").fill("sin-coincidencias-e2e");
     await expect(
       page.getByText("Sin coincidencias", { exact: true }),
-    ).toBeVisible();
+    ).toBeVisible({ timeout: 20_000 });
     await page.getByLabel("Buscar alumno").fill("");
 
     await page.getByRole("button", { name: "Mostrar formulario" }).click();
@@ -105,6 +135,24 @@ test.describe("experiencia ADMIN", () => {
     await expect(
       page.getByRole("heading", { name: "Detalle de cada clase y sus cargos" }),
     ).toBeVisible();
+    await page
+      .getByRole("button", { name: "Editar alumno", exact: true })
+      .click();
+    const originalName = await page.getByLabel("Nombre completo").inputValue();
+    await expect(page.getByLabel("Cumpleaños")).toBeVisible();
+    await expect(page.getByLabel("Teléfono")).toBeVisible();
+    await expect(page.getByLabel("Día preferido")).toBeVisible();
+    await expect(page.getByLabel("Horario", { exact: true })).toBeVisible();
+    await page.getByLabel("Nombre completo").fill("Borrador sin guardar");
+    await page.getByRole("button", { name: "Ocultar edición" }).click();
+    await page
+      .getByRole("button", { name: "Editar alumno", exact: true })
+      .click();
+    await expect(page.getByLabel("Nombre completo")).toHaveValue(originalName);
+    await page.screenshot({
+      path: test.info().outputPath("student-edit.png"),
+      fullPage: true,
+    });
   });
 });
 
@@ -135,5 +183,81 @@ test.describe("experiencia STUDENT", () => {
 
     await page.goto("/admin");
     await expect(page).toHaveURL(/\/mi-cuenta$/);
+  });
+
+  test("no puede consultar la ficha de otra alumna por API", async ({
+    page,
+  }) => {
+    test.skip(
+      !adminStudentId,
+      "Define E2E_ADMIN_STUDENT_ID para comprobar aislamiento.",
+    );
+    if (!hasCredentials(student) || !adminStudentId) return;
+    await login(page, student);
+
+    const ownResponse = await page.request.get(
+      `/api/trpc/students.byId?input=${trpcInput({ id: Number(adminStudentId) })}`,
+    );
+    expect(ownResponse.status()).toBe(200);
+    expect(await ownResponse.text()).toContain("Alumna de prueba E2E");
+
+    const otherResponse = await page.request.get(
+      `/api/trpc/students.byId?input=${trpcInput({ id: Number(adminStudentId) + 1 })}`,
+      { headers: { "x-request-id": "e2e-student-isolation" } },
+    );
+    expect(otherResponse.status()).toBe(404);
+    expect(otherResponse.headers()["x-request-id"]).toBe(
+      "e2e-student-isolation",
+    );
+    expect(await otherResponse.text()).not.toContain("Otra alumna aislada E2E");
+  });
+});
+
+test.describe("experiencia OWNER", () => {
+  test.skip(
+    !hasCredentials(owner),
+    "Define E2E_OWNER_EMAIL y E2E_OWNER_PASSWORD.",
+  );
+
+  test("etiqueta los formularios de taller, turnos y asignaciones", async ({
+    page,
+  }) => {
+    if (!hasCredentials(owner)) return;
+    await login(page, owner);
+    await page.goto("/admin");
+    await expect(
+      page.getByRole("heading", { name: "Usuarios y asignaciones" }),
+    ).toBeVisible();
+    await expect(page.getByLabel("Nombre del taller").first()).toBeVisible();
+    await expect(
+      page.getByLabel("Identificador del taller").first(),
+    ).toBeVisible();
+    await expect(page.getByLabel("Hora del nuevo turno")).toBeVisible();
+    await expect(page.getByLabel("Nombre del usuario").first()).toBeVisible();
+    await expect(page.getByLabel("Rol", { exact: true }).first()).toBeVisible();
+    await page
+      .getByLabel("Rol", { exact: true })
+      .first()
+      .selectOption("STUDENT");
+    await expect(page.getByLabel("Ficha del alumno")).toBeVisible();
+    // Check every visible control rather than only the fields named above.
+    const controls = page.locator(
+      "main input:visible, main select:visible, main textarea:visible, main button:visible",
+    );
+    for (const control of await controls.all()) {
+      await expect(control).toHaveAccessibleName(/\S/);
+    }
+    await page.screenshot({
+      path: test.info().outputPath("administration-desktop.png"),
+      fullPage: true,
+    });
+    await page.setViewportSize({ width: 390, height: 844 });
+    await expect
+      .poll(() =>
+        page.evaluate(
+          () => document.documentElement.scrollWidth <= window.innerWidth,
+        ),
+      )
+      .toBe(true);
   });
 });

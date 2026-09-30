@@ -1,9 +1,11 @@
 # Fase 5 — Separación de experiencias
 
-**Estado:** en curso desde el 9 de septiembre de 2026. Están terminados el
-portal del estudiante, la separación de la ficha administrativa, los estados
-principales de consulta y la primera suite E2E permanente. Continúa pendiente
-la consolidación general de formularios administrativos.
+**Estado:** refactor de interfaz completado localmente y documentado el 11 de
+septiembre de 2026. Están terminados el portal del estudiante, la separación de
+la ficha administrativa, los estados principales de consulta y la consolidación
+de formularios administrativos. La suite E2E tiene fixtures reproducibles y está
+incorporada al workflow; su ejecución en GitHub Actions queda pendiente de subir
+los cambios.
 
 ## Primera entrega: portal del estudiante
 
@@ -56,6 +58,29 @@ Playwright quedó incorporado como dependencia de desarrollo con una suite
 separada de Vitest. Las credenciales QA se reciben exclusivamente por variables
 de entorno y las pruebas no realizan mutaciones.
 
+## Cuarta entrega: formularios administrativos y CI
+
+- `StudentFields` comparte los campos de alta y edición, con etiquetas visibles,
+  teléfono de tipo `tel` y selectores asociados mediante IDs únicos. La edición
+  conserva la opción de turno inactivo ya asignado y bloquea el formulario con
+  un estado recuperable cuando falla la consulta de turnos.
+- Al reabrir la edición se recuperan los datos guardados; al guardar con éxito
+  se cierra el formulario y se invalidan ficha y listado en paralelo.
+- `StudioFields` reúne los campos de configuración, alta y edición de talleres.
+  El identificador sigue siendo opcional sólo en el alta.
+- Turnos, usuarios y asignaciones tienen etiquetas visibles; los botones que
+  sólo muestran un icono identifican su acción y el recurso afectado.
+- Se retiraron `classForm.tsx`, `classBadge.tsx` y el borrador de clase antiguo
+  de `types/utils.ts`, que ya no tenían consumidores.
+- `test:e2e:seed` crea datos ficticios exclusivamente en una base local
+  `mdceramica_e2e` o `mdceramica_e2e_*`, sin cargar `.env`. Rechaza parámetros
+  adicionales de conexión y bases con usuarios o alumnos existentes.
+- CI levanta PostgreSQL 16, aplica las migraciones, genera contraseñas efímeras,
+  prepara OWNER/ADMIN/STUDENT e instala Chromium. La falta de cuentas en CI
+  provoca un error, en lugar de omitir pruebas silenciosamente.
+- TypeScript y Prettier excluyen los reportes generados por Playwright. Las
+  aserciones esperan hasta diez segundos para tolerar la compilación inicial.
+
 ## Estados de interfaz
 
 - una ficha sin clases muestra un estado vacío explícito en `/mis-clases`;
@@ -91,9 +116,22 @@ Validación del 10 de septiembre de 2026:
   administrativa, portal STUDENT, búsqueda vacía, etiquetas del alta y error
   recuperable del listado.
 
+Validación final ejecutada el 10 de septiembre y revisada el 11:
+
+- las seis migraciones se aplicaron desde cero en PostgreSQL 18 descartable,
+  en `127.0.0.1:55435`, sin utilizar datos del taller;
+- `CI=true pnpm test:e2e --retries=0`: ocho pruebas aprobadas, ninguna omitida;
+- ADMIN verificó los campos de edición y el descarte del borrador al reabrir;
+- OWNER verificó los controles visibles de administración, el selector de ficha
+  al elegir STUDENT y la ausencia de desborde horizontal a 390 px;
+- se inspeccionaron capturas de la ficha y de administración en escritorio;
+- `pnpm check`: formato, ESLint, TypeScript y 19 pruebas unitarias aprobados;
+- `pnpm build` y `pnpm verify:css-theme` aprobados con Node.js 20.19.5.
+
 ## Trabajo siguiente
 
-1. continuar consolidando formularios y etiquetas administrativas;
-2. incorporar la base de prueba necesaria para ejecutar E2E en CI;
-3. revisar la política operativa de pagos antes de habilitar cualquier mutación
-   para estudiantes.
+1. verificar el workflow en GitHub Actions después de subir los cambios;
+2. continuar con integración, aislamiento entre cuentas, observabilidad y
+   despliegue controlado de la fase 6;
+3. definir la política operativa antes de habilitar mutaciones de pagos para
+   estudiantes; el portal actual sigue siendo de consulta.
